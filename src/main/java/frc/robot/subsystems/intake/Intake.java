@@ -42,4 +42,12 @@ public class Intake extends SubsystemBase {
             this)
         .withName("outtake");
   }
+
+  public int getStoredGamePieces() {
+    return io.getStoredGamePieces();
+  }
+
+  public boolean consumeGamePiece() {
+    return io.consumeGamePiece();
+  }
 }

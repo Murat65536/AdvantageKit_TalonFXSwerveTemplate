@@ -14,6 +14,14 @@ public interface IntakeIO {
 
   default void setRollerVoltage(Voltage voltage) {}
 
+  default int getStoredGamePieces() {
+    return 0;
+  }
+
+  default boolean consumeGamePiece() {
+    return false;
+  }
+
   @AutoLog
   class IntakeIOInputs {
     public AngularVelocity rollerVelocity = RPM.zero();

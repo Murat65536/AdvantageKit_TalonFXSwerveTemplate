@@ -32,6 +32,10 @@ import frc.robot.subsystems.intake.Intake;
 import frc.robot.subsystems.intake.IntakeIO;
 import frc.robot.subsystems.intake.IntakeIOReal;
 import frc.robot.subsystems.intake.IntakeIOSim;
+import frc.robot.subsystems.shooter.Shooter;
+import frc.robot.subsystems.shooter.ShooterIO;
+import frc.robot.subsystems.shooter.ShooterIOReal;
+import frc.robot.subsystems.shooter.ShooterIOSim;
 import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
@@ -51,6 +55,7 @@ public class RobotContainer {
   private final Drive drive;
   private final Vision vision;
   private final Intake intake;
+  private final Shooter shooter;
 
   // Simulation
   private SwerveDriveSimulation driveSimulation = null;
@@ -82,6 +87,7 @@ public class RobotContainer {
                 new VisionIOPhotonVision(camera0Name, robotToCamera0),
                 new VisionIOPhotonVision(camera1Name, robotToCamera1));
         intake = new Intake(new IntakeIOReal());
+        shooter = new Shooter(new ShooterIOReal());
         break;
 
       case SIM:
@@ -104,6 +110,12 @@ public class RobotContainer {
                 new VisionIOPhotonVisionSim(
                     camera1Name, robotToCamera1, driveSimulation::getSimulatedDriveTrainPose));
         intake = new Intake(new IntakeIOSim(driveSimulation));
+        shooter =
+            new Shooter(
+                new ShooterIOSim(
+                    driveSimulation::getSimulatedDriveTrainPose,
+                    drive::getFieldRelativeChassisSpeeds,
+                    intake::consumeGamePiece));
         break;
 
       default:
@@ -118,6 +130,7 @@ public class RobotContainer {
         // (Use same number of dummy implementations as the real robot)
         vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         intake = new Intake(new IntakeIO() {});
+        shooter = new Shooter(new ShooterIO() {});
         break;
     }
 
@@ -195,6 +208,12 @@ public class RobotContainer {
 
     // Deploy intake and eject while keyboard button 2 is held
     keyboard.button(2).whileTrue(intake.outtake());
+
+    // Spin up shooter while keyboard button 3 is held
+    keyboard.button(3).whileTrue(shooter.shoot());
+
+    // Reverse shooter while keyboard button 4 is held
+    keyboard.button(4).whileTrue(shooter.reverse());
   }
 
   /**

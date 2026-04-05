@@ -44,4 +44,14 @@ public class IntakeIOSim implements IntakeIO {
   public void setRollerVoltage(Voltage voltage) {
     rollerVout = voltage;
   }
+
+  @Override
+  public int getStoredGamePieces() {
+    return mapleSimIntake.getGamePiecesAmount();
+  }
+
+  @Override
+  public boolean consumeGamePiece() {
+    return mapleSimIntake.obtainGamePieceFromIntake();
+  }
 }
