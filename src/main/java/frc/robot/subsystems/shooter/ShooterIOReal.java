@@ -10,14 +10,14 @@ import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
-import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 
 /** Real hardware IO for the shooter flywheels using Neo Vortex motors on Spark Flex controllers. */
 public class ShooterIOReal implements ShooterIO {
-  private final SparkFlex topFlywheelMotor = new SparkFlex(TOP_FLYWHEEL_MOTOR_ID, MotorType.kBrushless);
+  private final SparkFlex topFlywheelMotor =
+      new SparkFlex(TOP_FLYWHEEL_MOTOR_ID, MotorType.kBrushless);
   private final SparkFlex bottomFlywheelMotor =
       new SparkFlex(BOTTOM_FLYWHEEL_MOTOR_ID, MotorType.kBrushless);
   private final RelativeEncoder topEncoder = topFlywheelMotor.getEncoder();
