@@ -28,19 +28,17 @@ public class Intake extends SubsystemBase {
   /** Run the roller to collect game pieces. Stops when released. */
   public Command intake() {
     return Commands.startEnd(
-            () -> io.setRollerVoltage(INTAKE_RUN_VOLTAGE),
-            () -> io.setRollerVoltage(Volts.of(0)),
-            this)
-        .withName("intake");
+        () -> io.setRollerVoltage(INTAKE_RUN_VOLTAGE),
+        () -> io.setRollerVoltage(Volts.of(0)),
+        this);
   }
 
   /** Reverse the roller to eject game pieces. Stops when released. */
   public Command outtake() {
     return Commands.startEnd(
-            () -> io.setRollerVoltage(INTAKE_EJECT_VOLTAGE),
-            () -> io.setRollerVoltage(Volts.of(0)),
-            this)
-        .withName("outtake");
+        () -> io.setRollerVoltage(INTAKE_EJECT_VOLTAGE),
+        () -> io.setRollerVoltage(Volts.of(0)),
+        this);
   }
 
   public int getStoredGamePieces() {
