@@ -12,19 +12,14 @@ public interface ShooterIO {
 
   default void updateInputs(ShooterIOInputs inputs) {}
 
-  default void setFlywheelVoltages(Voltage topVoltage, Voltage bottomVoltage) {}
+  default void setShooterVoltage(Voltage voltage) {}
 
   @AutoLog
   class ShooterIOInputs {
-    public AngularVelocity topFlywheelVelocity = RPM.zero();
-    public AngularVelocity bottomFlywheelVelocity = RPM.zero();
-    public Voltage topFlywheelVoltageOut = Volts.zero();
-    public Voltage bottomFlywheelVoltageOut = Volts.zero();
-    public Current topFlywheelCurrentOut = Amps.zero();
-    public Current bottomFlywheelCurrentOut = Amps.zero();
-    public Temperature topFlywheelTemp = Celsius.zero();
-    public Temperature bottomFlywheelTemp = Celsius.zero();
-    public boolean topFlywheelConnected = false;
-    public boolean bottomFlywheelConnected = false;
+    public AngularVelocity velocity = RPM.zero();
+    public Voltage voltageOut = Volts.zero();
+    public Current currentOut = Amps.zero();
+    public Temperature temp = Celsius.zero();
+    public boolean connected = false;
   }
 }

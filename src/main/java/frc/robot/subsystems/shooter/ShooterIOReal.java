@@ -16,58 +16,66 @@ import edu.wpi.first.wpilibj.Alert.AlertType;
 
 /** Real hardware IO for the shooter flywheels using Neo Vortex motors on Spark Flex controllers. */
 public class ShooterIOReal implements ShooterIO {
-  private final SparkFlex topFlywheelMotor =
-      new SparkFlex(TOP_FLYWHEEL_MOTOR_ID, MotorType.kBrushless);
-  private final SparkFlex bottomFlywheelMotor =
-      new SparkFlex(BOTTOM_FLYWHEEL_MOTOR_ID, MotorType.kBrushless);
-  private final RelativeEncoder topEncoder = topFlywheelMotor.getEncoder();
-  private final RelativeEncoder bottomEncoder = bottomFlywheelMotor.getEncoder();
+  private final SparkFlex topLeftMotor = new SparkFlex(TOP_LEFT_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex topRightMotor =
+      new SparkFlex(TOP_RIGHT_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex bottomLeftMotor =
+      new SparkFlex(BOTTOM_LEFT_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex bottomRightMotor =
+      new SparkFlex(BOTTOM_RIGHT_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final RelativeEncoder encoder = topLeftMotor.getEncoder();
 
-  private final Alert topFlywheelDisconnected =
-      new Alert("Shooter top flywheel Spark Flex disconnected!", AlertType.kError);
-  private final Alert bottomFlywheelDisconnected =
-      new Alert("Shooter bottom flywheel Spark Flex disconnected!", AlertType.kError);
+  private final Alert shooterDisconnected =
+      new Alert("Shooter Spark Flex disconnected!", AlertType.kError);
 
   public ShooterIOReal() {
-    SparkFlexConfig topConfig = new SparkFlexConfig();
-    topConfig
-        .idleMode(IdleMode.kCoast)
-        .inverted(TOP_FLYWHEEL_INVERTED)
-        .smartCurrentLimit((int) FLYWHEEL_CURRENT_LIMIT.in(Amps));
-    topFlywheelMotor.configure(
-        topConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    SparkFlexConfig topLeftMotorConfig = new SparkFlexConfig();
+    topLeftMotorConfig.idleMode(IdleMode.kCoast).smartCurrentLimit((int) CURRENT_LIMIT.in(Amps));
+    topLeftMotor.configure(
+        topLeftMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    SparkFlexConfig bottomConfig = new SparkFlexConfig();
-    bottomConfig
-        .idleMode(IdleMode.kCoast)
-        .inverted(BOTTOM_FLYWHEEL_INVERTED)
-        .smartCurrentLimit((int) FLYWHEEL_CURRENT_LIMIT.in(Amps));
-    bottomFlywheelMotor.configure(
-        bottomConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    SparkFlexConfig topRightMotorConfig = new SparkFlexConfig();
+    topRightMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor).inverted(true);
+    topRightMotor.configure(
+        topRightMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+
+    SparkFlexConfig bottomLeftMotorConfig = new SparkFlexConfig();
+    bottomLeftMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor);
+    bottomLeftMotor.configure(
+        bottomLeftMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+
+    SparkFlexConfig bottomRightMotorConfig = new SparkFlexConfig();
+    bottomRightMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor).inverted(true).flatten();
+    bottomRightMotor.configure(
+        bottomRightMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
   }
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    inputs.topFlywheelVelocity = RPM.of(topEncoder.getVelocity());
-    inputs.bottomFlywheelVelocity = RPM.of(bottomEncoder.getVelocity());
-    inputs.topFlywheelVoltageOut =
-        Volts.of(topFlywheelMotor.getAppliedOutput() * topFlywheelMotor.getBusVoltage());
-    inputs.bottomFlywheelVoltageOut =
-        Volts.of(bottomFlywheelMotor.getAppliedOutput() * bottomFlywheelMotor.getBusVoltage());
-    inputs.topFlywheelCurrentOut = Amps.of(topFlywheelMotor.getOutputCurrent());
-    inputs.bottomFlywheelCurrentOut = Amps.of(bottomFlywheelMotor.getOutputCurrent());
-    inputs.topFlywheelTemp = Celsius.of(topFlywheelMotor.getMotorTemperature());
-    inputs.bottomFlywheelTemp = Celsius.of(bottomFlywheelMotor.getMotorTemperature());
-    inputs.topFlywheelConnected = !topFlywheelMotor.hasActiveFault();
-    inputs.bottomFlywheelConnected = !bottomFlywheelMotor.hasActiveFault();
+    inputs.velocity = RPM.of(encoder.getVelocity());
+    inputs.voltageOut = Volts.of(topLeftMotor.getAppliedOutput() * topLeftMotor.getBusVoltage());
+    inputs.currentOut = Amps.of(topLeftMotor.getOutputCurrent() + topRightMotor.getOutputCurrent());
+    inputs.temp =
+        Celsius.of(
+            Math.max(
+                Math.max(topLeftMotor.getMotorTemperature(), topRightMotor.getMotorTemperature()),
+                Math.max(
+                    bottomLeftMotor.getMotorTemperature(),
+                    bottomRightMotor.getMotorTemperature())));
+    inputs.connected =
+        !topLeftMotor.hasActiveFault()
+            && !topRightMotor.hasActiveFault()
+            && !bottomLeftMotor.hasActiveFault()
+            && !bottomRightMotor.hasActiveFault();
 
-    topFlywheelDisconnected.set(!inputs.topFlywheelConnected);
-    bottomFlywheelDisconnected.set(!inputs.bottomFlywheelConnected);
+    shooterDisconnected.set(!inputs.connected);
   }
 
   @Override
-  public void setFlywheelVoltages(Voltage topVoltage, Voltage bottomVoltage) {
-    topFlywheelMotor.setVoltage(topVoltage.in(Volts));
-    bottomFlywheelMotor.setVoltage(bottomVoltage.in(Volts));
+  public void setShooterVoltage(Voltage voltage) {
+    topLeftMotor.setVoltage(voltage.in(Volts));
+    topRightMotor.setVoltage(voltage.in(Volts));
+    bottomLeftMotor.setVoltage(voltage.in(Volts));
+    bottomRightMotor.setVoltage(voltage.in(Volts));
   }
 }

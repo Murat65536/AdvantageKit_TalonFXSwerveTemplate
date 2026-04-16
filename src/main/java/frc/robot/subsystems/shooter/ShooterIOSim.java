@@ -22,29 +22,22 @@ import org.littletonrobotics.junction.Logger;
 
 /** Simulated IO for the shooter flywheel and projectile launching using MapleSim. */
 public class ShooterIOSim implements ShooterIO {
-  private final DCMotorSim topFlywheelSim;
-  private final DCMotorSim bottomFlywheelSim;
+  private final DCMotorSim shooterSim;
   private final Supplier<Pose2d> robotPoseSupplier;
   private final Supplier<ChassisSpeeds> fieldRelativeSpeedsSupplier;
   private final BooleanSupplier consumeGamePiece;
-  private Voltage topAppliedVoltage = Volts.zero();
-  private Voltage bottomAppliedVoltage = Volts.zero();
+  private Voltage appliedVoltage = Volts.zero();
   private double lastShotTimeSeconds = Double.NEGATIVE_INFINITY;
 
   public ShooterIOSim(
       Supplier<Pose2d> robotPoseSupplier,
       Supplier<ChassisSpeeds> fieldRelativeSpeedsSupplier,
       BooleanSupplier consumeGamePiece) {
-    topFlywheelSim =
+    shooterSim =
         new DCMotorSim(
             LinearSystemId.createDCMotorSystem(
-                DCMotor.getNeoVortex(1), FLYWHEEL_MOI, FLYWHEEL_GEAR_RATIO),
-            DCMotor.getNeoVortex(1));
-    bottomFlywheelSim =
-        new DCMotorSim(
-            LinearSystemId.createDCMotorSystem(
-                DCMotor.getNeoVortex(1), FLYWHEEL_MOI, FLYWHEEL_GEAR_RATIO),
-            DCMotor.getNeoVortex(1));
+                DCMotor.getNeoVortex(4), FLYWHEEL_MOI, FLYWHEEL_GEAR_RATIO),
+            DCMotor.getNeoVortex(4));
     this.robotPoseSupplier = robotPoseSupplier;
     this.fieldRelativeSpeedsSupplier = fieldRelativeSpeedsSupplier;
     this.consumeGamePiece = consumeGamePiece;
@@ -52,36 +45,24 @@ public class ShooterIOSim implements ShooterIO {
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    topFlywheelSim.setInputVoltage(topAppliedVoltage.in(Volts));
-    bottomFlywheelSim.setInputVoltage(bottomAppliedVoltage.in(Volts));
-    topFlywheelSim.update(0.02);
-    bottomFlywheelSim.update(0.02);
+    shooterSim.setInputVoltage(appliedVoltage.in(Volts));
+    shooterSim.update(0.02);
 
-    inputs.topFlywheelVelocity = RadiansPerSecond.of(topFlywheelSim.getAngularVelocityRadPerSec());
-    inputs.bottomFlywheelVelocity =
-        RadiansPerSecond.of(bottomFlywheelSim.getAngularVelocityRadPerSec());
-    inputs.topFlywheelVoltageOut = topAppliedVoltage;
-    inputs.bottomFlywheelVoltageOut = bottomAppliedVoltage;
-    inputs.topFlywheelCurrentOut = Amps.of(topFlywheelSim.getCurrentDrawAmps());
-    inputs.bottomFlywheelCurrentOut = Amps.of(bottomFlywheelSim.getCurrentDrawAmps());
-    inputs.topFlywheelConnected = true;
-    inputs.bottomFlywheelConnected = true;
+    inputs.velocity = RadiansPerSecond.of(shooterSim.getAngularVelocityRadPerSec());
+    inputs.voltageOut = appliedVoltage;
+    inputs.currentOut = Amps.of(shooterSim.getCurrentDrawAmps());
+    inputs.connected = true;
 
-    maybeLaunchProjectile(inputs.topFlywheelVelocity, inputs.bottomFlywheelVelocity);
+    maybeLaunchProjectile(inputs.velocity);
   }
 
   @Override
-  public void setFlywheelVoltages(Voltage topVoltage, Voltage bottomVoltage) {
-    topAppliedVoltage = topVoltage;
-    bottomAppliedVoltage = bottomVoltage;
+  public void setShooterVoltage(Voltage voltage) {
+    appliedVoltage = voltage;
   }
 
-  private void maybeLaunchProjectile(
-      AngularVelocity topFlywheelVelocity, AngularVelocity bottomFlywheelVelocity) {
-    if (topAppliedVoltage.lt(Volts.of(6))
-        || bottomAppliedVoltage.lt(Volts.of(6))
-        || topFlywheelVelocity.lt(SHOOTER_READY_VELOCITY)
-        || bottomFlywheelVelocity.lt(SHOOTER_READY_VELOCITY)) {
+  private void maybeLaunchProjectile(AngularVelocity velocity) {
+    if (appliedVoltage.lt(Volts.of(6)) || velocity.lt(SHOOTER_READY_VELOCITY)) {
       return;
     }
 

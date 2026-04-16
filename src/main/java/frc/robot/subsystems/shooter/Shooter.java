@@ -28,16 +28,14 @@ public class Shooter extends SubsystemBase {
   /** Spin up the flywheel at full voltage. Stops when released. */
   public Command shoot() {
     return Commands.startEnd(
-        () -> io.setFlywheelVoltages(SHOOTER_SHOOT_VOLTAGE, SHOOTER_SHOOT_VOLTAGE),
-        () -> io.setFlywheelVoltages(Volts.zero(), Volts.zero()),
-        this);
+        () -> io.setShooterVoltage(SHOOT_VOLTAGE), () -> io.setShooterVoltage(Volts.zero()), this);
   }
 
   /** Reverse the flywheel at low voltage (e.g. for unjamming). Stops when released. */
   public Command reverse() {
     return Commands.startEnd(
-        () -> io.setFlywheelVoltages(SHOOTER_REVERSE_VOLTAGE, SHOOTER_REVERSE_VOLTAGE),
-        () -> io.setFlywheelVoltages(Volts.zero(), Volts.zero()),
+        () -> io.setShooterVoltage(REVERSE_VOLTAGE),
+        () -> io.setShooterVoltage(Volts.zero()),
         this);
   }
 }

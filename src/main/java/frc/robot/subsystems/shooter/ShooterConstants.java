@@ -13,15 +13,15 @@ import edu.wpi.first.units.measure.Voltage;
 
 public class ShooterConstants {
   // Motor config
-  public static final int TOP_FLYWHEEL_MOTOR_ID = 43;
-  public static final int BOTTOM_FLYWHEEL_MOTOR_ID = 44;
-  public static final boolean TOP_FLYWHEEL_INVERTED = false;
-  public static final boolean BOTTOM_FLYWHEEL_INVERTED = true;
-  public static final Current FLYWHEEL_CURRENT_LIMIT = Amps.of(40);
+  public static final int TOP_LEFT_MOTOR_CAN_ID = 43;
+  public static final int TOP_RIGHT_MOTOR_CAN_ID = 45;
+  public static final int BOTTOM_LEFT_MOTOR_CAN_ID = 44;
+  public static final int BOTTOM_RIGHT_MOTOR_CAN_ID = 46;
+  public static final Current CURRENT_LIMIT = Amps.of(40);
 
   // Voltages
-  public static final Voltage SHOOTER_SHOOT_VOLTAGE = Volts.of(12);
-  public static final Voltage SHOOTER_REVERSE_VOLTAGE = Volts.of(-4);
+  public static final Voltage SHOOT_VOLTAGE = Volts.of(12);
+  public static final Voltage REVERSE_VOLTAGE = Volts.of(-4);
 
   // Sim constants
   public static final double FLYWHEEL_GEAR_RATIO = 1.0; // direct drive
