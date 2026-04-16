@@ -72,27 +72,15 @@ public class ShooterIOSim implements ShooterIO {
     }
 
     Pose2d robotPose = robotPoseSupplier.get();
-    List<Pose3d> topTrajectory = new ArrayList<>();
-    List<Pose3d> bottomTrajectory = new ArrayList<>();
+    List<Pose3d> trajectory = new ArrayList<>();
     boolean launchedProjectile = false;
 
     if (consumeGamePiece.getAsBoolean()) {
-      launchProjectile(robotPose, TOP_SHOOTER_POSITION_ON_ROBOT, "Top", topTrajectory);
+      launchProjectile(robotPose, SHOOTER_POSITION_ON_ROBOT, "Shooter", trajectory);
       launchedProjectile = true;
     } else {
-      Logger.recordOutput("FieldSimulation/TopShooterTrajectory", new Pose3d[] {});
+      Logger.recordOutput("FieldSimulation/ShooterTrajectory", new Pose3d[] {});
     }
-
-    if (consumeGamePiece.getAsBoolean()) {
-      launchProjectile(robotPose, BOTTOM_SHOOTER_POSITION_ON_ROBOT, "Bottom", bottomTrajectory);
-      launchedProjectile = true;
-    } else {
-      Logger.recordOutput("FieldSimulation/BottomShooterTrajectory", new Pose3d[] {});
-    }
-
-    Logger.recordOutput(
-        "FieldSimulation/ShooterTrajectory",
-        combineTrajectories(topTrajectory, bottomTrajectory).toArray(Pose3d[]::new));
 
     if (launchedProjectile) {
       lastShotTimeSeconds = now;
@@ -122,14 +110,5 @@ public class ShooterIOSim implements ShooterIO {
               trajectory.toArray(Pose3d[]::new));
         });
     SimulatedArena.getInstance().addGamePieceProjectile(shot);
-  }
-
-  private List<Pose3d> combineTrajectories(
-      List<Pose3d> topTrajectory, List<Pose3d> bottomTrajectory) {
-    List<Pose3d> combinedTrajectory =
-        new ArrayList<>(topTrajectory.size() + bottomTrajectory.size());
-    combinedTrajectory.addAll(topTrajectory);
-    combinedTrajectory.addAll(bottomTrajectory);
-    return combinedTrajectory;
   }
 }

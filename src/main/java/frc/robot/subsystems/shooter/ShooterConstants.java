@@ -28,9 +28,7 @@ public class ShooterConstants {
   public static final double FLYWHEEL_MOI = 0.004; // kg*m^2
 
   // MapleSim projectile constants
-  public static final Translation2d TOP_SHOOTER_POSITION_ON_ROBOT = new Translation2d(0.32, 0.12);
-  public static final Translation2d BOTTOM_SHOOTER_POSITION_ON_ROBOT =
-      new Translation2d(0.32, -0.12);
+  public static final Translation2d SHOOTER_POSITION_ON_ROBOT = new Translation2d(0.32, 0.12);
   public static final Distance SHOOTER_HEIGHT = Inches.of(28);
   public static final LinearVelocity SHOOTER_EXIT_VELOCITY = MetersPerSecond.of(16.0);
   public static final Angle SHOOTER_ANGLE = Degrees.of(38);
