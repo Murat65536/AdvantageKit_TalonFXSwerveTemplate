@@ -10,6 +10,8 @@ import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkFlexConfig;
+import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
@@ -27,6 +29,9 @@ public class ShooterIOReal implements ShooterIO {
 
   private final Alert shooterDisconnected =
       new Alert("Shooter Spark Flex disconnected!", AlertType.kError);
+  private Voltage appliedVoltage = Volts.zero();
+  private AngularVelocity velocitySetpoint = RPM.zero();
+  private boolean velocityControlEnabled = false;
 
   public ShooterIOReal() {
     SparkFlexConfig topLeftMotorConfig = new SparkFlexConfig();
@@ -52,6 +57,15 @@ public class ShooterIOReal implements ShooterIO {
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
+    if (velocityControlEnabled) {
+      double targetRpm = velocitySetpoint.in(RPM);
+      double measuredRpm = encoder.getVelocity();
+      double ffVolts = targetRpm * SHOOTER_VELOCITY_FF_VOLTS_PER_RPM;
+      double feedbackVolts = (targetRpm - measuredRpm) * SHOOTER_VELOCITY_KP_VOLTS_PER_RPM;
+      appliedVoltage = Volts.of(MathUtil.clamp(ffVolts + feedbackVolts, -12.0, 12.0));
+      topLeftMotor.setVoltage(appliedVoltage.in(Volts));
+    }
+
     inputs.velocity = RPM.of(encoder.getVelocity());
     inputs.voltageOut = Volts.of(topLeftMotor.getAppliedOutput() * topLeftMotor.getBusVoltage());
     inputs.currentOut = Amps.of(topLeftMotor.getOutputCurrent() + topRightMotor.getOutputCurrent());
@@ -73,9 +87,14 @@ public class ShooterIOReal implements ShooterIO {
 
   @Override
   public void setShooterVoltage(Voltage voltage) {
+    velocityControlEnabled = false;
+    appliedVoltage = voltage;
     topLeftMotor.setVoltage(voltage.in(Volts));
-    topRightMotor.setVoltage(voltage.in(Volts));
-    bottomLeftMotor.setVoltage(voltage.in(Volts));
-    bottomRightMotor.setVoltage(voltage.in(Volts));
+  }
+
+  @Override
+  public void setShooterVelocity(AngularVelocity velocity) {
+    velocityControlEnabled = true;
+    velocitySetpoint = velocity;
   }
 }

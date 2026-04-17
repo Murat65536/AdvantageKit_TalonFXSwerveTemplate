@@ -150,6 +150,19 @@ public class DriveCommands {
         .beforeStarting(() -> angleController.reset(drive.getRotation().getRadians()));
   }
 
+  /** Field-relative drive while continuously aiming the robot at a field position. */
+  public static Command joystickDriveFacingPoint(
+      Drive drive,
+      DoubleSupplier xSupplier,
+      DoubleSupplier ySupplier,
+      Supplier<Translation2d> targetSupplier) {
+    return joystickDriveAtAngle(
+        drive,
+        xSupplier,
+        ySupplier,
+        () -> targetSupplier.get().minus(drive.getPose().getTranslation()).getAngle());
+  }
+
   /**
    * Measures the velocity feedforward constants for the drive motors.
    *

@@ -7,6 +7,7 @@
 
 package frc.robot;
 
+import static frc.robot.subsystems.shooter.ShooterConstants.HUB_TRANSLATION;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
 import com.pathplanner.lib.auto.AutoBuilder;
@@ -84,8 +85,8 @@ public class RobotContainer {
         vision =
             new Vision(
                 drive::addVisionMeasurement,
-                new VisionIOPhotonVision(camera0Name, robotToCamera0),
-                new VisionIOPhotonVision(camera1Name, robotToCamera1));
+                new VisionIOPhotonVision(LEFT_CAMERA_NAME, ROBOT_TO_LEFT_CAMERA_TRANSLATION),
+                new VisionIOPhotonVision(RIGHT_CAMERA_NAME, ROBOT_TO_RIGHT_CAMERA_TRANSLATION));
         intake = new Intake(new IntakeIOReal());
         shooter = new Shooter(new ShooterIOReal());
         break;
@@ -106,9 +107,13 @@ public class RobotContainer {
             new Vision(
                 drive::addVisionMeasurement,
                 new VisionIOPhotonVisionSim(
-                    camera0Name, robotToCamera0, driveSimulation::getSimulatedDriveTrainPose),
+                    LEFT_CAMERA_NAME,
+                    ROBOT_TO_LEFT_CAMERA_TRANSLATION,
+                    driveSimulation::getSimulatedDriveTrainPose),
                 new VisionIOPhotonVisionSim(
-                    camera1Name, robotToCamera1, driveSimulation::getSimulatedDriveTrainPose));
+                    RIGHT_CAMERA_NAME,
+                    ROBOT_TO_RIGHT_CAMERA_TRANSLATION,
+                    driveSimulation::getSimulatedDriveTrainPose));
         intake = new Intake(new IntakeIOSim(driveSimulation));
         shooter =
             new Shooter(
@@ -209,11 +214,20 @@ public class RobotContainer {
     // Deploy intake and eject while keyboard button 2 is held
     keyboard.button(2).whileTrue(intake.outtake());
 
-    // Spin up shooter while keyboard button 3 is held
-    keyboard.button(3).whileTrue(shooter.shoot());
+    // Auto-aim at the hub while keyboard button 3 is held
+    keyboard
+        .button(3)
+        .whileTrue(
+            DriveCommands.joystickDriveFacingPoint(
+                drive,
+                () -> keyboard.getRawAxis(1),
+                () -> keyboard.getRawAxis(0),
+                () -> HUB_TRANSLATION));
 
-    // Reverse shooter while keyboard button 4 is held
-    keyboard.button(4).whileTrue(shooter.reverse());
+    // Dynamically set shooter speed/angle model for hub shots while keyboard button 4 is held
+    keyboard
+        .button(4)
+        .whileTrue(shooter.shootAtHub(drive::getPose, drive::getFieldRelativeChassisSpeeds));
   }
 
   /**
