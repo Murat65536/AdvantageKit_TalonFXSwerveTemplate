@@ -56,7 +56,12 @@ public final class ShooterMath {
   }
 
   public record ShotSolution(
-      LinearVelocity exitVelocity, Angle launchAngle, Time timeOfFlight, double distanceMeters) {}
+      LinearVelocity exitVelocity,
+      Angle launchAngle,
+      Time timeOfFlight,
+      double distanceMeters,
+      double frontEdgeDistanceMeters,
+      double rpmLookupDistanceMeters) {}
 
   /**
    * Map-based launch model: apply lookahead from chassis velocity, then interpolate speed and angle
@@ -67,7 +72,8 @@ public final class ShooterMath {
     Translation2d launchTranslation =
         robotPose
             .getTranslation()
-            .plus(SHOOTER_POSITION_ON_ROBOT.rotateBy(robotPose.getRotation()));
+            .plus(
+                new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0).rotateBy(robotPose.getRotation()));
 
     Translation2d lookaheadLaunchTranslation = launchTranslation;
     double lookaheadDistanceMeters = HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
@@ -81,14 +87,21 @@ public final class ShooterMath {
       lookaheadDistanceMeters = HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
     }
 
-    if (lookaheadDistanceMeters < minDistanceMeters
-        || lookaheadDistanceMeters > maxDistanceMeters) {
+    Translation2d lookaheadFrontEdgeTranslation =
+        lookaheadLaunchTranslation.plus(
+            new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0).rotateBy(robotPose.getRotation()));
+    double lookaheadFrontEdgeDistanceMeters =
+        HUB_TRANSLATION.getDistance(lookaheadFrontEdgeTranslation);
+    double rpmLookupDistanceMeters = lookaheadFrontEdgeDistanceMeters;
+
+    if (rpmLookupDistanceMeters < minDistanceMeters
+        || rpmLookupDistanceMeters > maxDistanceMeters) {
       return Optional.empty();
     }
 
     double speedMetersPerSecond =
         MathUtil.clamp(
-            exitVelocityMap.get(lookaheadDistanceMeters),
+            exitVelocityMap.get(rpmLookupDistanceMeters),
             MIN_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond),
             MAX_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond));
     Angle launchAngle = fixedLaunchAngle;
@@ -97,8 +110,10 @@ public final class ShooterMath {
         new ShotSolution(
             MetersPerSecond.of(speedMetersPerSecond),
             launchAngle,
-            Seconds.of(timeOfFlightMap.get(lookaheadDistanceMeters)),
-            lookaheadDistanceMeters));
+            Seconds.of(timeOfFlightMap.get(rpmLookupDistanceMeters)),
+            lookaheadDistanceMeters,
+            lookaheadFrontEdgeDistanceMeters,
+            rpmLookupDistanceMeters));
   }
 
   public static AngularVelocity exitVelocityToFlywheelVelocity(LinearVelocity exitVelocity) {

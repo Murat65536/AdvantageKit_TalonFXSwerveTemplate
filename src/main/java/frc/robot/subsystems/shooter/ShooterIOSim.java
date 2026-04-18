@@ -114,7 +114,7 @@ public class ShooterIOSim implements ShooterIO {
     if (consumeGamePiece.getAsBoolean()) {
       launchProjectile(
           robotPose,
-          SHOOTER_POSITION_ON_ROBOT,
+          new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0),
           "Shooter",
           velocityControlEnabled
               ? requestedExitVelocity

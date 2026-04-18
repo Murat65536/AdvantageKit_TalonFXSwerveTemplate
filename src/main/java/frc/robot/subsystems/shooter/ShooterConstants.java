@@ -38,7 +38,6 @@ public class ShooterConstants {
   public static final Distance HUB_HEIGHT = Inches.of(104.0);
 
   // Projectile constants
-  public static final Translation2d SHOOTER_POSITION_ON_ROBOT = new Translation2d(0.32, 0.12);
   public static final Distance SHOOTER_HEIGHT = Inches.of(28);
   public static final Distance FLYWHEEL_EFFECTIVE_RADIUS = Inches.of(2.0);
   public static final double EXIT_VELOCITY_SLIP_FACTOR = 0.58;
@@ -54,6 +53,8 @@ public class ShooterConstants {
       MetersPerSecond.of(
           SHOOTER_READY_VELOCITY.in(RadiansPerSecond) * EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC);
   public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.18);
+
+  public static final double SHOOTER_OFFSET_X_METERS = Units.inchesToMeters(5.202363);
 
   // Dynamic shot limits and conversion
   public static final LinearVelocity MIN_DYNAMIC_EXIT_VELOCITY = MetersPerSecond.of(8.0);

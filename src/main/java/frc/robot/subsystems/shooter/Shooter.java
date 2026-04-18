@@ -62,6 +62,8 @@ public class Shooter extends SubsystemBase {
                 Logger.recordOutput("Subsystems/Shooter/HubTargetFlywheelRpm", 0.0);
                 Logger.recordOutput("Subsystems/Shooter/HubTargetLaunchAngleDeg", 0.0);
                 Logger.recordOutput("Subsystems/Shooter/HubTargetDistanceM", 0.0);
+                Logger.recordOutput("Subsystems/Shooter/HubTargetFrontEdgeDistanceM", 0.0);
+                Logger.recordOutput("Subsystems/Shooter/HubTargetRpmLookupDistanceM", 0.0);
                 Logger.recordOutput("Subsystems/Shooter/HubTargetTofSec", 0.0);
                 return;
               }
@@ -85,6 +87,12 @@ public class Shooter extends SubsystemBase {
                   "Subsystems/Shooter/HubTargetLaunchAngleDeg", solution.launchAngle().in(Degrees));
               Logger.recordOutput(
                   "Subsystems/Shooter/HubTargetDistanceM", solution.distanceMeters());
+              Logger.recordOutput(
+                  "Subsystems/Shooter/HubTargetFrontEdgeDistanceM",
+                  solution.frontEdgeDistanceMeters());
+              Logger.recordOutput(
+                  "Subsystems/Shooter/HubTargetRpmLookupDistanceM",
+                  solution.rpmLookupDistanceMeters());
               Logger.recordOutput(
                   "Subsystems/Shooter/HubTargetTofSec", solution.timeOfFlight().in(Seconds));
             },
