@@ -24,7 +24,7 @@ public interface HoodIO {
     public Temperature temp = Celsius.zero();
     public boolean leftMotorConnected = false;
     public boolean rightMotorConnected = false;
-    public boolean cancoderConnected = false;
+    public boolean encoderConnected = false;
     public boolean atSetpoint = false;
   }
 }

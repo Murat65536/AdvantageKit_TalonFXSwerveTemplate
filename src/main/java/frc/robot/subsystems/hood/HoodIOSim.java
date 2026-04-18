@@ -35,7 +35,7 @@ public class HoodIOSim implements HoodIO {
     inputs.temp = Celsius.of(30.0 + Math.abs(appliedVolts));
     inputs.leftMotorConnected = true;
     inputs.rightMotorConnected = true;
-    inputs.cancoderConnected = true;
+    inputs.encoderConnected = true;
     inputs.atSetpoint = Math.abs(errorDeg) <= HOOD_ANGLE_TOLERANCE.in(Degrees);
   }
 

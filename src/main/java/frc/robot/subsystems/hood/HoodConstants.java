@@ -11,7 +11,6 @@ public class HoodConstants {
   // Motor and encoder config
   public static final int LEFT_MOTOR_CAN_ID = 20;
   public static final int RIGHT_MOTOR_CAN_ID = 21;
-  public static final int HOOD_CANCODER_CAN_ID = 22;
   public static final boolean LEFT_MOTOR_INVERTED = false;
   public static final boolean RIGHT_MOTOR_FOLLOW_INVERTED = true;
   public static final Current MOTOR_CURRENT_LIMIT = Amps.of(20);
@@ -19,7 +18,7 @@ public class HoodConstants {
   // Geometry and limits
   public static final Angle MIN_HOOD_ANGLE = Degrees.of(54);
   public static final Angle MAX_HOOD_ANGLE = Degrees.of(73);
-  public static final Angle HOOD_CANCODER_ZERO_OFFSET = Degrees.of(0);
+  public static final Angle HOOD_ABSOLUTE_ENCODER_ZERO_OFFSET = Degrees.of(0);
   public static final Angle HOOD_ANGLE_TOLERANCE = Degrees.of(0.75);
 
   // Closed-loop tuning

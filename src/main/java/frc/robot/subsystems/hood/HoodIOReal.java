@@ -3,9 +3,7 @@ package frc.robot.subsystems.hood;
 import static edu.wpi.first.units.Units.*;
 import static frc.robot.subsystems.hood.HoodConstants.*;
 
-import com.ctre.phoenix6.BaseStatusSignal;
-import com.ctre.phoenix6.StatusSignal;
-import com.ctre.phoenix6.hardware.CANcoder;
+import com.revrobotics.AbsoluteEncoder;
 import com.revrobotics.PersistMode;
 import com.revrobotics.ResetMode;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
@@ -15,25 +13,21 @@ import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
-import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 
-/** Real hardware IO for the hood using two NEO 550s on Spark MAX and a CANcoder angle sensor. */
+/** Real hardware IO for the hood using two NEO 550s on Spark MAX and motor absolute encoder. */
 public class HoodIOReal implements HoodIO {
   private final SparkMax leftMotor = new SparkMax(LEFT_MOTOR_CAN_ID, MotorType.kBrushless);
   private final SparkMax rightMotor = new SparkMax(RIGHT_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final CANcoder cancoder = new CANcoder(HOOD_CANCODER_CAN_ID);
-
-  private final StatusSignal<Angle> cancoderAbsolutePosition = cancoder.getAbsolutePosition();
-  private final StatusSignal<AngularVelocity> cancoderVelocity = cancoder.getVelocity();
+  private final AbsoluteEncoder absoluteEncoder = leftMotor.getAbsoluteEncoder();
 
   private final Alert leftMotorDisconnected =
       new Alert("Hood left Spark MAX disconnected!", AlertType.kError);
   private final Alert rightMotorDisconnected =
       new Alert("Hood right Spark MAX disconnected!", AlertType.kError);
-  private final Alert cancoderDisconnected =
-      new Alert("Hood CANcoder disconnected!", AlertType.kError);
+  private final Alert encoderDisconnected =
+      new Alert("Hood motor absolute encoder disconnected!", AlertType.kError);
 
   private Angle targetAngle = MIN_HOOD_ANGLE;
 
@@ -57,12 +51,10 @@ public class HoodIOReal implements HoodIO {
 
   @Override
   public void updateInputs(HoodIOInputs inputs) {
-    boolean cancoderOk =
-        BaseStatusSignal.refreshAll(cancoderAbsolutePosition, cancoderVelocity).isOK();
     double angleDeg =
-        Units.rotationsToDegrees(cancoderAbsolutePosition.getValueAsDouble())
-            - HOOD_CANCODER_ZERO_OFFSET.in(Degrees);
-    double velocityDegPerSec = Units.rotationsToDegrees(cancoderVelocity.getValueAsDouble());
+        Units.rotationsToDegrees(absoluteEncoder.getPosition())
+            - HOOD_ABSOLUTE_ENCODER_ZERO_OFFSET.in(Degrees);
+    double velocityDegPerSec = Units.rotationsToDegrees(absoluteEncoder.getVelocity());
     double errorDeg = targetAngle.in(Degrees) - angleDeg;
     double controlVolts =
         MathUtil.clamp(
@@ -79,12 +71,12 @@ public class HoodIOReal implements HoodIO {
         Celsius.of(Math.max(leftMotor.getMotorTemperature(), rightMotor.getMotorTemperature()));
     inputs.leftMotorConnected = !leftMotor.hasActiveFault();
     inputs.rightMotorConnected = !rightMotor.hasActiveFault();
-    inputs.cancoderConnected = cancoderOk;
+    inputs.encoderConnected = inputs.leftMotorConnected;
     inputs.atSetpoint = Math.abs(errorDeg) <= HOOD_ANGLE_TOLERANCE.in(Degrees);
 
     leftMotorDisconnected.set(!inputs.leftMotorConnected);
     rightMotorDisconnected.set(!inputs.rightMotorConnected);
-    cancoderDisconnected.set(!inputs.cancoderConnected);
+    encoderDisconnected.set(!inputs.encoderConnected);
   }
 
   @Override
