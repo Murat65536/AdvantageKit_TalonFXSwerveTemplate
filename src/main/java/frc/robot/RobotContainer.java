@@ -29,6 +29,10 @@ import frc.robot.subsystems.drive.GyroIOSim;
 import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.drive.ModuleIOTalonFXSim;
+import frc.robot.subsystems.hood.Hood;
+import frc.robot.subsystems.hood.HoodIO;
+import frc.robot.subsystems.hood.HoodIOReal;
+import frc.robot.subsystems.hood.HoodIOSim;
 import frc.robot.subsystems.intake.Intake;
 import frc.robot.subsystems.intake.IntakeIO;
 import frc.robot.subsystems.intake.IntakeIOReal;
@@ -56,6 +60,7 @@ public class RobotContainer {
   private final Drive drive;
   private final Vision vision;
   private final Intake intake;
+  private final Hood hood;
   private final Shooter shooter;
 
   // Simulation
@@ -88,6 +93,7 @@ public class RobotContainer {
                 new VisionIOPhotonVision(LEFT_CAMERA_NAME, ROBOT_TO_LEFT_CAMERA_TRANSLATION),
                 new VisionIOPhotonVision(RIGHT_CAMERA_NAME, ROBOT_TO_RIGHT_CAMERA_TRANSLATION));
         intake = new Intake(new IntakeIOReal());
+        hood = new Hood(new HoodIOReal());
         shooter = new Shooter(new ShooterIOReal());
         break;
 
@@ -115,11 +121,13 @@ public class RobotContainer {
                     ROBOT_TO_RIGHT_CAMERA_TRANSLATION,
                     driveSimulation::getSimulatedDriveTrainPose));
         intake = new Intake(new IntakeIOSim(driveSimulation));
+        hood = new Hood(new HoodIOSim());
         shooter =
             new Shooter(
                 new ShooterIOSim(
                     driveSimulation::getSimulatedDriveTrainPose,
                     drive::getFieldRelativeChassisSpeeds,
+                    hood::getAngle,
                     intake::consumeGamePiece));
         break;
 
@@ -135,6 +143,7 @@ public class RobotContainer {
         // (Use same number of dummy implementations as the real robot)
         vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         intake = new Intake(new IntakeIO() {});
+        hood = new Hood(new HoodIO() {});
         shooter = new Shooter(new ShooterIO() {});
         break;
     }
@@ -227,7 +236,7 @@ public class RobotContainer {
     // Dynamically set shooter speed/angle model for hub shots while keyboard button 4 is held
     keyboard
         .button(4)
-        .whileTrue(shooter.shootAtHub(drive::getPose, drive::getFieldRelativeChassisSpeeds));
+        .whileTrue(shooter.shootAtHub(drive::getPose, drive::getFieldRelativeChassisSpeeds, hood));
   }
 
   /**

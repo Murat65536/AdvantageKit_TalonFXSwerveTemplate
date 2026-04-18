@@ -8,6 +8,7 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
+import frc.robot.subsystems.hood.Hood;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
 
@@ -23,6 +24,9 @@ public class Shooter extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("IO/Shooter", inputs);
+    Logger.recordOutput(
+        "Subsystems/Shooter/EstimatedExitVelocityMps",
+        ShooterMath.flywheelVelocityToExitVelocity(inputs.velocity).in(MetersPerSecond));
     Logger.recordOutput(
         "Subsystems/Shooter/command",
         getCurrentCommand() == null ? "none" : getCurrentCommand().getName());
@@ -44,7 +48,9 @@ public class Shooter extends SubsystemBase {
 
   /** Continuously solves required shot speed and launch angle to land in the hub. */
   public Command shootAtHub(
-      Supplier<Pose2d> robotPoseSupplier, Supplier<ChassisSpeeds> fieldRelativeSpeedsSupplier) {
+      Supplier<Pose2d> robotPoseSupplier,
+      Supplier<ChassisSpeeds> fieldRelativeSpeedsSupplier,
+      Hood hood) {
     return Commands.run(
             () -> {
               var shotSolution =
@@ -53,28 +59,37 @@ public class Shooter extends SubsystemBase {
               if (shotSolution.isEmpty()) {
                 io.setShooterVoltage(Volts.zero());
                 Logger.recordOutput("Subsystems/Shooter/HubTargetExitVelocityMps", 0.0);
+                Logger.recordOutput("Subsystems/Shooter/HubTargetFlywheelRpm", 0.0);
                 Logger.recordOutput("Subsystems/Shooter/HubTargetLaunchAngleDeg", 0.0);
                 Logger.recordOutput("Subsystems/Shooter/HubTargetDistanceM", 0.0);
                 Logger.recordOutput("Subsystems/Shooter/HubTargetTofSec", 0.0);
                 return;
               }
 
-              io.setShooterLaunchAngle(shotSolution.get().launchAngle());
-              io.setShooterVelocity(
-                  ShooterMath.exitVelocityToFlywheelVelocity(shotSolution.get().exitVelocity()));
+              var solution = shotSolution.get();
+              var baseFlywheelVelocity =
+                  ShooterMath.exitVelocityToFlywheelVelocity(solution.exitVelocity());
+              var targetFlywheelVelocity =
+                  RPM.of(baseFlywheelVelocity.in(RPM) * HUB_FLYWHEEL_RPM_SCALE);
+
+              hood.setTargetAngle(solution.launchAngle());
+              io.setShooterVelocity(targetFlywheelVelocity);
               Logger.recordOutput(
                   "Subsystems/Shooter/HubTargetExitVelocityMps",
-                  shotSolution.get().exitVelocity().in(MetersPerSecond));
+                  solution.exitVelocity().in(MetersPerSecond));
               Logger.recordOutput(
-                  "Subsystems/Shooter/HubTargetLaunchAngleDeg",
-                  shotSolution.get().launchAngle().in(Degrees));
+                  "Subsystems/Shooter/HubTargetFlywheelRpm", targetFlywheelVelocity.in(RPM));
               Logger.recordOutput(
-                  "Subsystems/Shooter/HubTargetDistanceM", shotSolution.get().distanceMeters());
+                  "Subsystems/Shooter/HubTargetFlywheelRpmBase", baseFlywheelVelocity.in(RPM));
               Logger.recordOutput(
-                  "Subsystems/Shooter/HubTargetTofSec",
-                  shotSolution.get().timeOfFlight().in(Seconds));
+                  "Subsystems/Shooter/HubTargetLaunchAngleDeg", solution.launchAngle().in(Degrees));
+              Logger.recordOutput(
+                  "Subsystems/Shooter/HubTargetDistanceM", solution.distanceMeters());
+              Logger.recordOutput(
+                  "Subsystems/Shooter/HubTargetTofSec", solution.timeOfFlight().in(Seconds));
             },
-            this)
+            this,
+            hood)
         .finallyDo(() -> io.setShooterVoltage(Volts.zero()));
   }
 }

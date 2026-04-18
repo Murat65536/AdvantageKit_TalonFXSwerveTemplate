@@ -5,12 +5,10 @@ import static frc.robot.subsystems.shooter.ShooterConstants.*;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
-import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
-import edu.wpi.first.math.interpolation.InterpolatingTreeMap;
-import edu.wpi.first.math.interpolation.InverseInterpolator;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.LinearVelocity;
@@ -18,36 +16,31 @@ import edu.wpi.first.units.measure.Time;
 import java.util.Optional;
 
 public final class ShooterMath {
-  private static final InterpolatingTreeMap<Double, Rotation2d> launchAngleMap =
-      new InterpolatingTreeMap<>(InverseInterpolator.forDouble(), Rotation2d::interpolate);
   private static final InterpolatingDoubleTreeMap exitVelocityMap =
       new InterpolatingDoubleTreeMap();
   private static final InterpolatingDoubleTreeMap timeOfFlightMap =
       new InterpolatingDoubleTreeMap();
+  private static final Angle fixedLaunchAngle = Degrees.of(59.0);
   private static final double minDistanceMeters;
   private static final double maxDistanceMeters;
 
   private ShooterMath() {}
 
   static {
-    // Tuned map seeds inspired by LaunchCalculator-style interpolation.
-    launchAngleMap.put(1.0, Rotation2d.fromDegrees(50.0));
-    launchAngleMap.put(1.5, Rotation2d.fromDegrees(48.0));
-    launchAngleMap.put(2.0, Rotation2d.fromDegrees(46.0));
-    launchAngleMap.put(2.5, Rotation2d.fromDegrees(44.0));
-    launchAngleMap.put(3.0, Rotation2d.fromDegrees(42.0));
-    launchAngleMap.put(3.5, Rotation2d.fromDegrees(40.0));
-    launchAngleMap.put(4.0, Rotation2d.fromDegrees(38.0));
-    launchAngleMap.put(4.5, Rotation2d.fromDegrees(36.0));
-
-    exitVelocityMap.put(1.0, 10.0);
-    exitVelocityMap.put(1.5, 11.5);
-    exitVelocityMap.put(2.0, 12.8);
-    exitVelocityMap.put(2.5, 14.0);
-    exitVelocityMap.put(3.0, 15.3);
-    exitVelocityMap.put(3.5, 16.6);
-    exitVelocityMap.put(4.0, 17.8);
-    exitVelocityMap.put(4.5, 19.0);
+    // Seeds from "Shooter Development Plan.xlsx - 59-degree Data.csv" using Far Shooter RPM.
+    exitVelocityMap.put(2.286, rpmToExitVelocityMetersPerSecond(2650));
+    exitVelocityMap.put(2.540, rpmToExitVelocityMetersPerSecond(2700));
+    exitVelocityMap.put(2.794, rpmToExitVelocityMetersPerSecond(2800));
+    exitVelocityMap.put(3.048, rpmToExitVelocityMetersPerSecond(2900));
+    exitVelocityMap.put(3.302, rpmToExitVelocityMetersPerSecond(3000));
+    exitVelocityMap.put(3.556, rpmToExitVelocityMetersPerSecond(3100));
+    exitVelocityMap.put(3.810, rpmToExitVelocityMetersPerSecond(3250));
+    exitVelocityMap.put(4.064, rpmToExitVelocityMetersPerSecond(3300));
+    exitVelocityMap.put(4.318, rpmToExitVelocityMetersPerSecond(3400));
+    exitVelocityMap.put(4.572, rpmToExitVelocityMetersPerSecond(3500));
+    exitVelocityMap.put(4.826, rpmToExitVelocityMetersPerSecond(3650));
+    exitVelocityMap.put(5.080, rpmToExitVelocityMetersPerSecond(3750));
+    exitVelocityMap.put(5.334, rpmToExitVelocityMetersPerSecond(3800));
 
     timeOfFlightMap.put(1.0, 0.55);
     timeOfFlightMap.put(1.5, 0.65);
@@ -58,8 +51,8 @@ public final class ShooterMath {
     timeOfFlightMap.put(4.0, 1.30);
     timeOfFlightMap.put(4.5, 1.45);
 
-    minDistanceMeters = 1.0;
-    maxDistanceMeters = 4.5;
+    minDistanceMeters = 2.286;
+    maxDistanceMeters = 5.334;
   }
 
   public record ShotSolution(
@@ -98,12 +91,7 @@ public final class ShooterMath {
             exitVelocityMap.get(lookaheadDistanceMeters),
             MIN_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond),
             MAX_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond));
-    Angle launchAngle =
-        Degrees.of(
-            MathUtil.clamp(
-                launchAngleMap.get(lookaheadDistanceMeters).getDegrees(),
-                MIN_DYNAMIC_SHOOTER_ANGLE.in(Degrees),
-                MAX_DYNAMIC_SHOOTER_ANGLE.in(Degrees)));
+    Angle launchAngle = fixedLaunchAngle;
 
     return Optional.of(
         new ShotSolution(
@@ -127,5 +115,14 @@ public final class ShooterMath {
         Math.max(
             0.0, flywheelVelocity.in(RadiansPerSecond) * EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC);
     return MetersPerSecond.of(exitMetersPerSecond);
+  }
+
+  public static LinearVelocity flywheelRpmToExitVelocity(double flywheelRpm) {
+    return flywheelVelocityToExitVelocity(
+        RadiansPerSecond.of(Units.rotationsPerMinuteToRadiansPerSecond(flywheelRpm)));
+  }
+
+  private static double rpmToExitVelocityMetersPerSecond(double rpm) {
+    return flywheelRpmToExitVelocity(rpm).in(MetersPerSecond);
   }
 }

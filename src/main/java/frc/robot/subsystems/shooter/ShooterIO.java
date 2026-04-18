@@ -2,7 +2,6 @@ package frc.robot.subsystems.shooter;
 
 import static edu.wpi.first.units.Units.*;
 
-import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
 import edu.wpi.first.units.measure.Temperature;
@@ -16,8 +15,6 @@ public interface ShooterIO {
   default void setShooterVoltage(Voltage voltage) {}
 
   default void setShooterVelocity(AngularVelocity velocity) {}
-
-  default void setShooterLaunchAngle(Angle launchAngle) {}
 
   @AutoLog
   class ShooterIOInputs {

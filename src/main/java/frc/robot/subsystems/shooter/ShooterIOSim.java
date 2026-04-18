@@ -28,11 +28,11 @@ public class ShooterIOSim implements ShooterIO {
   private final FlywheelSim shooterSim;
   private final Supplier<Pose2d> robotPoseSupplier;
   private final Supplier<ChassisSpeeds> fieldRelativeSpeedsSupplier;
+  private final Supplier<Angle> launchAngleSupplier;
   private final BooleanSupplier consumeGamePiece;
   private final double simMaxFlywheelSpeedRadPerSec = DCMotor.getNeoVortex(4).freeSpeedRadPerSec;
   private Voltage appliedVoltage = Volts.zero();
   private AngularVelocity velocitySetpoint = RPM.zero();
-  private Angle requestedLaunchAngle = SHOOTER_ANGLE;
   private LinearVelocity requestedExitVelocity = SHOOTER_EXIT_VELOCITY;
   private boolean velocityControlEnabled = false;
   private double lastShotTimeSeconds = Double.NEGATIVE_INFINITY;
@@ -40,6 +40,7 @@ public class ShooterIOSim implements ShooterIO {
   public ShooterIOSim(
       Supplier<Pose2d> robotPoseSupplier,
       Supplier<ChassisSpeeds> fieldRelativeSpeedsSupplier,
+      Supplier<Angle> launchAngleSupplier,
       BooleanSupplier consumeGamePiece) {
     shooterSim =
         new FlywheelSim(
@@ -48,6 +49,7 @@ public class ShooterIOSim implements ShooterIO {
             DCMotor.getNeoVortex(4));
     this.robotPoseSupplier = robotPoseSupplier;
     this.fieldRelativeSpeedsSupplier = fieldRelativeSpeedsSupplier;
+    this.launchAngleSupplier = launchAngleSupplier;
     this.consumeGamePiece = consumeGamePiece;
   }
 
@@ -77,7 +79,6 @@ public class ShooterIOSim implements ShooterIO {
   public void setShooterVoltage(Voltage voltage) {
     velocityControlEnabled = false;
     appliedVoltage = voltage;
-    requestedLaunchAngle = SHOOTER_ANGLE;
     requestedExitVelocity =
         ShooterMath.flywheelVelocityToExitVelocity(
             RadiansPerSecond.of(shooterSim.getAngularVelocityRadPerSec()));
@@ -88,11 +89,6 @@ public class ShooterIOSim implements ShooterIO {
     velocityControlEnabled = true;
     velocitySetpoint = velocity;
     requestedExitVelocity = ShooterMath.flywheelVelocityToExitVelocity(velocity);
-  }
-
-  @Override
-  public void setShooterLaunchAngle(Angle launchAngle) {
-    requestedLaunchAngle = launchAngle;
   }
 
   private void maybeLaunchProjectile(AngularVelocity velocity) {
@@ -148,7 +144,7 @@ public class ShooterIOSim implements ShooterIO {
             robotPose.getRotation(),
             SHOOTER_HEIGHT,
             exitVelocity,
-            requestedLaunchAngle);
+            launchAngleSupplier.get());
     shot.withProjectileTrajectoryDisplayCallBack(
         trajectory -> {
           trajectoryBuffer.clear();
