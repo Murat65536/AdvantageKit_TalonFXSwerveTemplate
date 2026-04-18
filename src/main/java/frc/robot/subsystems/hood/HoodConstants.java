@@ -11,8 +11,6 @@ public class HoodConstants {
   // Motor and encoder config
   public static final int LEFT_MOTOR_CAN_ID = 20;
   public static final int RIGHT_MOTOR_CAN_ID = 21;
-  public static final boolean LEFT_MOTOR_INVERTED = false;
-  public static final boolean RIGHT_MOTOR_FOLLOW_INVERTED = true;
   public static final Current MOTOR_CURRENT_LIMIT = Amps.of(20);
 
   // Geometry and limits

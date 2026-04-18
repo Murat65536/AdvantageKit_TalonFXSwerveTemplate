@@ -33,17 +33,14 @@ public class HoodIOReal implements HoodIO {
 
   public HoodIOReal() {
     SparkMaxConfig leftConfig = new SparkMaxConfig();
-    leftConfig
-        .idleMode(IdleMode.kBrake)
-        .inverted(LEFT_MOTOR_INVERTED)
-        .smartCurrentLimit((int) MOTOR_CURRENT_LIMIT.in(Amps));
+    leftConfig.idleMode(IdleMode.kBrake).smartCurrentLimit((int) MOTOR_CURRENT_LIMIT.in(Amps));
     leftMotor.configure(
         leftConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
     SparkMaxConfig rightConfig = new SparkMaxConfig();
     rightConfig
         .apply(leftConfig)
-        .follow(leftMotor, RIGHT_MOTOR_FOLLOW_INVERTED)
+        .follow(leftMotor, true)
         .smartCurrentLimit((int) MOTOR_CURRENT_LIMIT.in(Amps));
     rightMotor.configure(
         rightConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);

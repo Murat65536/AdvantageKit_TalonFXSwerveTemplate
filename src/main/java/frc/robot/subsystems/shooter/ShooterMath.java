@@ -86,12 +86,8 @@ public final class ShooterMath {
       lookaheadLaunchTranslation = launchTranslation.plus(velocityOffset);
       lookaheadDistanceMeters = HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
     }
-
-    Translation2d lookaheadFrontEdgeTranslation =
-        lookaheadLaunchTranslation.plus(
-            new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0).rotateBy(robotPose.getRotation()));
     double lookaheadFrontEdgeDistanceMeters =
-        HUB_TRANSLATION.getDistance(lookaheadFrontEdgeTranslation);
+        HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
     double rpmLookupDistanceMeters = lookaheadFrontEdgeDistanceMeters;
 
     if (rpmLookupDistanceMeters < minDistanceMeters
