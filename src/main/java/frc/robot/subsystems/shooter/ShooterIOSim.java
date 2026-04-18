@@ -6,7 +6,8 @@ import static frc.robot.subsystems.shooter.ShooterConstants.*;
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
-import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.math.system.plant.LinearSystemId;
@@ -34,7 +35,6 @@ public class ShooterIOSim implements ShooterIO {
   private Voltage appliedVoltage = Volts.zero();
   private AngularVelocity velocitySetpoint = RPM.zero();
   private LinearVelocity requestedExitVelocity = SHOOTER_EXIT_VELOCITY;
-  private boolean velocityControlEnabled = false;
   private double lastShotTimeSeconds = Double.NEGATIVE_INFINITY;
 
   public ShooterIOSim(
@@ -55,14 +55,12 @@ public class ShooterIOSim implements ShooterIO {
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    if (velocityControlEnabled) {
-      double targetRadPerSec = velocitySetpoint.in(RadiansPerSecond);
-      double measuredRadPerSec = shooterSim.getAngularVelocityRadPerSec();
-      double ffVolts = 12.0 * targetRadPerSec / simMaxFlywheelSpeedRadPerSec;
-      double feedbackVolts =
-          (targetRadPerSec - measuredRadPerSec) * SHOOTER_SIM_VELOCITY_KP_VOLTS_PER_RAD_PER_SEC;
-      appliedVoltage = Volts.of(MathUtil.clamp(ffVolts + feedbackVolts, -12.0, 12.0));
-    }
+    double targetRadPerSec = velocitySetpoint.in(RadiansPerSecond);
+    double measuredRadPerSec = shooterSim.getAngularVelocityRadPerSec();
+    double ffVolts = 12.0 * targetRadPerSec / simMaxFlywheelSpeedRadPerSec;
+    double feedbackVolts =
+        (targetRadPerSec - measuredRadPerSec) * SHOOTER_SIM_VELOCITY_KP_VOLTS_PER_RAD_PER_SEC;
+    appliedVoltage = Volts.of(MathUtil.clamp(ffVolts + feedbackVolts, -12.0, 12.0));
 
     shooterSim.setInputVoltage(appliedVoltage.in(Volts));
     shooterSim.update(0.02);
@@ -77,29 +75,27 @@ public class ShooterIOSim implements ShooterIO {
 
   @Override
   public void setShooterVoltage(Voltage voltage) {
-    velocityControlEnabled = false;
-    appliedVoltage = voltage;
-    requestedExitVelocity =
-        ShooterMath.flywheelVelocityToExitVelocity(
-            RadiansPerSecond.of(shooterSim.getAngularVelocityRadPerSec()));
+    double targetRadPerSec =
+        MathUtil.clamp(voltage.in(Volts), -12.0, 12.0)
+            / 12.0
+            * MAX_FLYWHEEL_VELOCITY.in(RadiansPerSecond);
+    velocitySetpoint = RadiansPerSecond.of(targetRadPerSec);
+    requestedExitVelocity = ShooterMath.flywheelVelocityToExitVelocity(velocitySetpoint);
   }
 
   @Override
   public void setShooterVelocity(AngularVelocity velocity) {
-    velocityControlEnabled = true;
     velocitySetpoint = velocity;
     requestedExitVelocity = ShooterMath.flywheelVelocityToExitVelocity(velocity);
   }
 
   private void maybeLaunchProjectile(AngularVelocity velocity) {
-    if (velocityControlEnabled) {
-      if (velocity.lt(velocitySetpoint.minus(SHOOTER_AT_SPEED_TOLERANCE))) {
-        return;
-      }
-    } else {
-      if (appliedVoltage.lt(Volts.of(6)) || velocity.lt(SHOOTER_READY_VELOCITY)) {
-        return;
-      }
+    if (velocitySetpoint.lte(RPM.zero())) {
+      return;
+    }
+
+    if (velocity.lt(velocitySetpoint.minus(SHOOTER_AT_SPEED_TOLERANCE))) {
+      return;
     }
 
     double now = Logger.getTimestamp() / 1.0e6;
@@ -113,13 +109,7 @@ public class ShooterIOSim implements ShooterIO {
 
     if (consumeGamePiece.getAsBoolean()) {
       launchProjectile(
-          robotPose,
-          new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0),
-          "Shooter",
-          velocityControlEnabled
-              ? requestedExitVelocity
-              : ShooterMath.flywheelVelocityToExitVelocity(velocity),
-          trajectory);
+          robotPose, BALL_EXIT_TRANSLATION, "Shooter", requestedExitVelocity, trajectory);
       launchedProjectile = true;
     } else {
       Logger.recordOutput("FieldSimulation/ShooterTrajectory", new Pose3d[] {});
@@ -132,17 +122,17 @@ public class ShooterIOSim implements ShooterIO {
 
   private void launchProjectile(
       Pose2d robotPose,
-      Translation2d shooterPositionOnRobot,
+      Translation3d ballExitTranslation,
       String trajectoryKeySuffix,
       LinearVelocity exitVelocity,
       List<Pose3d> trajectoryBuffer) {
     RebuiltFuelOnFly shot =
         new RebuiltFuelOnFly(
             robotPose.getTranslation(),
-            shooterPositionOnRobot,
+            ballExitTranslation.toTranslation2d(),
             fieldRelativeSpeedsSupplier.get(),
-            robotPose.getRotation(),
-            SHOOTER_HEIGHT,
+            robotPose.getRotation().plus(new Rotation2d(Math.PI)),
+            Meters.of(ballExitTranslation.getZ()),
             exitVelocity,
             launchAngleSupplier.get());
     shot.withProjectileTrajectoryDisplayCallBack(

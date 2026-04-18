@@ -160,7 +160,12 @@ public class DriveCommands {
         drive,
         xSupplier,
         ySupplier,
-        () -> targetSupplier.get().minus(drive.getPose().getTranslation()).getAngle());
+        () ->
+            targetSupplier
+                .get()
+                .minus(drive.getPose().getTranslation())
+                .getAngle()
+                .plus(new Rotation2d(Math.PI)));
   }
 
   /**

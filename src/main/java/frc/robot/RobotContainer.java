@@ -17,7 +17,6 @@ import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.CommandGenericHID;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.commands.DriveCommands;
@@ -29,6 +28,10 @@ import frc.robot.subsystems.drive.GyroIOSim;
 import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.drive.ModuleIOTalonFXSim;
+import frc.robot.subsystems.extension.Extension;
+import frc.robot.subsystems.extension.ExtensionIO;
+import frc.robot.subsystems.extension.ExtensionIOReal;
+import frc.robot.subsystems.extension.ExtensionIOSim;
 import frc.robot.subsystems.hood.Hood;
 import frc.robot.subsystems.hood.HoodIO;
 import frc.robot.subsystems.hood.HoodIOReal;
@@ -60,6 +63,7 @@ public class RobotContainer {
   private final Drive drive;
   private final Vision vision;
   private final Intake intake;
+  private final Extension extension;
   private final Hood hood;
   private final Shooter shooter;
 
@@ -67,8 +71,7 @@ public class RobotContainer {
   private SwerveDriveSimulation driveSimulation = null;
 
   // Controller
-  private final CommandXboxController controller = new CommandXboxController(1);
-  private final CommandGenericHID keyboard = new CommandGenericHID(0); // Keyboard 0 on port 0
+  private final CommandXboxController controller = new CommandXboxController(0);
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -93,6 +96,7 @@ public class RobotContainer {
                 new VisionIOPhotonVision(LEFT_CAMERA_NAME, ROBOT_TO_LEFT_CAMERA_TRANSLATION),
                 new VisionIOPhotonVision(RIGHT_CAMERA_NAME, ROBOT_TO_RIGHT_CAMERA_TRANSLATION));
         intake = new Intake(new IntakeIOReal());
+        extension = new Extension(new ExtensionIOReal());
         hood = new Hood(new HoodIOReal());
         shooter = new Shooter(new ShooterIOReal());
         break;
@@ -121,6 +125,7 @@ public class RobotContainer {
                     ROBOT_TO_RIGHT_CAMERA_TRANSLATION,
                     driveSimulation::getSimulatedDriveTrainPose));
         intake = new Intake(new IntakeIOSim(driveSimulation));
+        extension = new Extension(new ExtensionIOSim());
         hood = new Hood(new HoodIOSim());
         shooter =
             new Shooter(
@@ -143,6 +148,7 @@ public class RobotContainer {
         // (Use same number of dummy implementations as the real robot)
         vision = new Vision(drive::addVisionMeasurement, new VisionIO() {}, new VisionIO() {});
         intake = new Intake(new IntakeIO() {});
+        extension = new Extension(new ExtensionIO() {});
         hood = new Hood(new HoodIO() {});
         shooter = new Shooter(new ShooterIO() {});
         break;
@@ -179,63 +185,38 @@ public class RobotContainer {
    */
   private void configureButtonBindings() {
     // Default command, normal field-relative drive
-    // drive.setDefaultCommand(
-    //     DriveCommands.joystickDrive(
-    //         drive,
-    //         () -> controller.getLeftY(),
-    //         () -> controller.getLeftX(),
-    //         () -> -controller.getRightX()));
-    // Joystick drive command
     drive.setDefaultCommand(
         DriveCommands.joystickDrive(
             drive,
-            () -> keyboard.getRawAxis(1),
-            () -> keyboard.getRawAxis(0),
-            () -> keyboard.getRawAxis(2)));
-
-    // Lock to 0° when A button is held
-    controller
-        .a()
-        .whileTrue(
-            DriveCommands.joystickDriveAtAngle(
-                drive,
-                () -> -controller.getLeftY(),
-                () -> -controller.getLeftX(),
-                () -> Rotation2d.kZero));
+            () -> controller.getLeftY(),
+            () -> controller.getLeftX(),
+            () -> -controller.getRightX()));
+    // Joystick drive command
 
     // Switch to X pattern when X button is pressed
     controller.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
 
-    // Reset gyro to 0° when B button is pressed
+    // While B is held, extend and only run intake once extension is fully extended.
     controller
         .b()
-        .onTrue(
-            Commands.runOnce(
-                    () ->
-                        drive.setPose(
-                            new Pose2d(drive.getPose().getTranslation(), Rotation2d.kZero)),
-                    drive)
-                .ignoringDisable(true));
+        .whileTrue(
+            Commands.parallel(extension.extend(), intake.intake(extension::isFullyExtended)));
 
-    // Deploy intake and run roller while keyboard button 1 is held
-    keyboard.button(1).whileTrue(intake.intake());
+    controller.leftBumper().whileTrue(extension.retract());
+    controller.rightBumper().whileTrue(extension.extend());
 
-    // Deploy intake and eject while keyboard button 2 is held
-    keyboard.button(2).whileTrue(intake.outtake());
-
-    // Auto-aim at the hub while keyboard button 3 is held
-    keyboard
-        .button(3)
+    controller
+        .leftTrigger()
         .whileTrue(
             DriveCommands.joystickDriveFacingPoint(
                 drive,
-                () -> keyboard.getRawAxis(1),
-                () -> keyboard.getRawAxis(0),
+                () -> controller.getLeftY(),
+                () -> controller.getLeftX(),
                 () -> HUB_TRANSLATION));
 
-    // Dynamically set shooter speed/angle model for hub shots while keyboard button 4 is held
-    keyboard
-        .button(4)
+    // Dynamically set shooter speed/angle model for hub shots while right trigger is held
+    controller
+        .rightTrigger()
         .whileTrue(shooter.shootAtHub(drive::getPose, drive::getFieldRelativeChassisSpeeds, hood));
   }
 
