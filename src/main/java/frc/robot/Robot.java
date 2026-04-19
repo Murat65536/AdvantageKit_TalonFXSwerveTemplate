@@ -156,7 +156,13 @@ public class Robot extends LoggedRobot {
   @Override
   public void simulationPeriodic() {
     SimulatedArena.getInstance().simulationPeriodic();
+
+    int storedGamePieces = robotContainer.getStoredGamePieces();
+    Pose3d[] heldFuelPoses = robotContainer.getHeldGamePiecePoses();
+
     Pose3d[] fuelPoses = SimulatedArena.getInstance().getGamePiecesArrayByType("Fuel");
     Logger.recordOutput("FieldSimulation/FuelPositions", fuelPoses);
+    Logger.recordOutput("FieldSimulation/HeldFuelPositions", heldFuelPoses);
+    Logger.recordOutput("FieldSimulation/HeldFuelCount", storedGamePieces);
   }
 }

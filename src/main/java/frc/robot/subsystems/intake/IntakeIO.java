@@ -2,6 +2,8 @@ package frc.robot.subsystems.intake;
 
 import static edu.wpi.first.units.Units.*;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
 import edu.wpi.first.units.measure.Temperature;
@@ -20,6 +22,10 @@ public interface IntakeIO {
 
   default boolean consumeGamePiece() {
     return false;
+  }
+
+  default Pose3d[] getHeldGamePiecePoses(Pose2d robotPose) {
+    return new Pose3d[] {};
   }
 
   @AutoLog

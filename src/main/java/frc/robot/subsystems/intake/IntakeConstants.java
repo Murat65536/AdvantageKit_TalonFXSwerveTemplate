@@ -17,4 +17,6 @@ public class IntakeConstants {
 
   // Roller sim constant (RPM per volt)
   public static final double ROLLER_RPM_PER_VOLT = 124.075;
+
+  public static final double FUEL_DIAMETER = 0.15;
 }

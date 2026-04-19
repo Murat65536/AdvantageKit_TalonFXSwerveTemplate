@@ -3,6 +3,8 @@ package frc.robot.subsystems.intake;
 import static edu.wpi.first.units.Units.Volts;
 import static frc.robot.subsystems.intake.IntakeConstants.*;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -56,5 +58,9 @@ public class Intake extends SubsystemBase {
 
   public boolean consumeGamePiece() {
     return io.consumeGamePiece();
+  }
+
+  public Pose3d[] getHeldGamePiecePoses(Pose2d robotPose) {
+    return io.getHeldGamePiecePoses(robotPose);
   }
 }

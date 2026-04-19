@@ -12,6 +12,7 @@ import static frc.robot.subsystems.vision.VisionConstants.*;
 
 import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
@@ -227,5 +228,20 @@ public class RobotContainer {
    */
   public Command getAutonomousCommand() {
     return autoChooser.get();
+  }
+
+  /** Returns the current estimated robot pose. */
+  public Pose2d getRobotPose() {
+    return drive.getPose();
+  }
+
+  /** Returns number of game pieces currently stored in the intake simulation. */
+  public int getStoredGamePieces() {
+    return intake.getStoredGamePieces();
+  }
+
+  /** Returns poses of game pieces currently held by the intake simulation. */
+  public Pose3d[] getHeldGamePiecePoses() {
+    return intake.getHeldGamePiecePoses(drive.getPose());
   }
 }
