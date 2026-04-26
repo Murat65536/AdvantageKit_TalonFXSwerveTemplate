@@ -2,6 +2,7 @@ package frc.robot.subsystems.hood;
 
 import static edu.wpi.first.units.Units.*;
 
+import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Current;
@@ -18,6 +19,8 @@ public class HoodConstants {
   public static final Angle MAX_HOOD_ANGLE = Degrees.of(73);
   public static final Angle HOOD_ABSOLUTE_ENCODER_ZERO_OFFSET = Degrees.of(0);
   public static final Angle HOOD_ANGLE_TOLERANCE = Degrees.of(0.75);
+
+  public static final Translation3d HOOD_PIVOT_TRANSLATION = new Translation3d(0.0, 0.0, 0.0);
 
   // Closed-loop tuning
   public static final double HOOD_KP_VOLTS_PER_DEG = 0.20;

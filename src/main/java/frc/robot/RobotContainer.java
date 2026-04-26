@@ -7,6 +7,7 @@
 
 package frc.robot;
 
+import static edu.wpi.first.units.Units.Degrees;
 import static frc.robot.subsystems.shooter.ShooterConstants.HUB_TRANSLATION;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
@@ -206,6 +207,11 @@ public class RobotContainer {
     controller.leftBumper().whileTrue(extension.retract());
     controller.rightBumper().whileTrue(extension.extend());
 
+    controller.povUp().whileTrue(Commands.run(() -> hood.adjustTargetAngle(Degrees.of(0.2)), hood));
+    controller
+        .povDown()
+        .whileTrue(Commands.run(() -> hood.adjustTargetAngle(Degrees.of(-0.2)), hood));
+
     controller
         .leftTrigger()
         .whileTrue(
@@ -243,5 +249,10 @@ public class RobotContainer {
   /** Returns poses of game pieces currently held by the intake simulation. */
   public Pose3d[] getHeldGamePiecePoses() {
     return intake.getHeldGamePiecePoses(drive.getPose());
+  }
+
+  /** Returns the current hood pose for simulation visualization. */
+  public Pose3d getHoodPose() {
+    return hood.getPose(drive.getPose());
   }
 }

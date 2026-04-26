@@ -29,7 +29,6 @@ public class Extension extends SubsystemBase {
     io.updateInputs(inputs);
     Logger.processInputs("IO/Extension", inputs);
     Pose3d componentPose = getComponentPose();
-    Logger.recordOutput("Subsystems/Extension/ComponentPoses", new Pose3d[] {componentPose});
     Logger.recordOutput("Subsystems/Extension/ComponentPose", componentPose);
     Logger.recordOutput(
         "Subsystems/Extension/command",
