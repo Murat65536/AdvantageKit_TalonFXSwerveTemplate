@@ -48,7 +48,7 @@ public class ShooterConstants {
   public static final LinearVelocity SHOOTER_EXIT_VELOCITY =
       MetersPerSecond.of(
           SHOOTER_READY_VELOCITY.in(RadiansPerSecond) * EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC);
-  public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.18);
+  public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.03);
 
   public static final double SHOOTER_OFFSET_X_METERS = Units.inchesToMeters(5.202363);
 

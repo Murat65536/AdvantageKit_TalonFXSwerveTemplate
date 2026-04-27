@@ -16,7 +16,7 @@ import org.ironmaple.simulation.drivesims.AbstractDriveTrainSimulation;
 import org.littletonrobotics.junction.Logger;
 
 public class IntakeIOSim implements IntakeIO {
-  private Voltage rollerVout = Volts.zero();
+  private Voltage rollerVoltage = Volts.zero();
   private final IntakeSimulation mapleSimIntake;
 
   public IntakeIOSim(AbstractDriveTrainSimulation driveTrain) {
@@ -33,12 +33,12 @@ public class IntakeIOSim implements IntakeIO {
 
   @Override
   public void updateInputs(IntakeIOInputs inputs) {
-    inputs.rollerVelocity = RPM.of(ROLLER_RPM_PER_VOLT * rollerVout.in(Volts));
-    inputs.rollerVoltageOut = rollerVout;
+    inputs.rollerVelocity = RPM.of(ROLLER_RPM_PER_VOLT * rollerVoltage.in(Volts));
+    inputs.rollerVoltageOut = rollerVoltage;
     inputs.rollerConnected = true;
 
     // MapleSim intake: active when roller is spinning
-    if (rollerVout.gte(Volts.of(3))) {
+    if (rollerVoltage.gte(Volts.of(3))) {
       mapleSimIntake.startIntake();
     } else {
       mapleSimIntake.stopIntake();
@@ -48,7 +48,7 @@ public class IntakeIOSim implements IntakeIO {
 
   @Override
   public void setRollerVoltage(Voltage voltage) {
-    rollerVout = voltage;
+    rollerVoltage = voltage;
   }
 
   @Override

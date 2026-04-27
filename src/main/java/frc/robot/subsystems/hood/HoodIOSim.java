@@ -32,7 +32,7 @@ public class HoodIOSim implements HoodIO {
     inputs.velocity = DegreesPerSecond.of(currentVelocityDegPerSec);
     inputs.appliedVoltage = Volts.of(appliedVolts);
     inputs.current = Amps.of(Math.abs(appliedVolts) * 0.9);
-    inputs.temp = Celsius.of(30.0 + Math.abs(appliedVolts));
+    inputs.temp = Celsius.zero();
     inputs.leftMotorConnected = true;
     inputs.rightMotorConnected = true;
     inputs.encoderConnected = true;

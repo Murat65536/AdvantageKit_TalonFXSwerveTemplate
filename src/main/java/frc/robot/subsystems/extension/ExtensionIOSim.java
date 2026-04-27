@@ -30,7 +30,7 @@ public class ExtensionIOSim implements ExtensionIO {
     inputs.velocity = RotationsPerSecond.of(velocityRps);
     inputs.appliedVoltage = Volts.of(safeVolts);
     inputs.current = Amps.of(Math.abs(safeVolts) * 1.3);
-    inputs.temp = Celsius.of(30.0 + Math.abs(safeVolts) * 1.2);
+    inputs.temp = Celsius.zero();
     inputs.connected = true;
     inputs.forwardLimitPressed = positionRot >= MAX_POSITION_ROT;
     inputs.reverseLimitPressed = positionRot <= MIN_POSITION_ROT;
