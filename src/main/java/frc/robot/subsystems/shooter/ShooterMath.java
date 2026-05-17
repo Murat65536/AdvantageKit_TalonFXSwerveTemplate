@@ -27,20 +27,19 @@ public final class ShooterMath {
   private ShooterMath() {}
 
   static {
-    // Seeds from "Shooter Development Plan.xlsx - 59-degree Data.csv" using Far Shooter RPM.
-    exitVelocityMap.put(2.286, rpmToExitVelocityMetersPerSecond(2650));
-    exitVelocityMap.put(2.540, rpmToExitVelocityMetersPerSecond(2700));
-    exitVelocityMap.put(2.794, rpmToExitVelocityMetersPerSecond(2800));
-    exitVelocityMap.put(3.048, rpmToExitVelocityMetersPerSecond(2900));
-    exitVelocityMap.put(3.302, rpmToExitVelocityMetersPerSecond(3000));
-    exitVelocityMap.put(3.556, rpmToExitVelocityMetersPerSecond(3100));
-    exitVelocityMap.put(3.810, rpmToExitVelocityMetersPerSecond(3250));
-    exitVelocityMap.put(4.064, rpmToExitVelocityMetersPerSecond(3300));
-    exitVelocityMap.put(4.318, rpmToExitVelocityMetersPerSecond(3400));
-    exitVelocityMap.put(4.572, rpmToExitVelocityMetersPerSecond(3500));
-    exitVelocityMap.put(4.826, rpmToExitVelocityMetersPerSecond(3650));
-    exitVelocityMap.put(5.080, rpmToExitVelocityMetersPerSecond(3750));
-    exitVelocityMap.put(5.334, rpmToExitVelocityMetersPerSecond(3800));
+    exitVelocityMap.put(2.286, rpmToVelocity(2650));
+    exitVelocityMap.put(2.540, rpmToVelocity(2700));
+    exitVelocityMap.put(2.794, rpmToVelocity(2800));
+    exitVelocityMap.put(3.048, rpmToVelocity(2900));
+    exitVelocityMap.put(3.302, rpmToVelocity(3000));
+    exitVelocityMap.put(3.556, rpmToVelocity(3100));
+    exitVelocityMap.put(3.810, rpmToVelocity(3250));
+    exitVelocityMap.put(4.064, rpmToVelocity(3300));
+    exitVelocityMap.put(4.318, rpmToVelocity(3400));
+    exitVelocityMap.put(4.572, rpmToVelocity(3500));
+    exitVelocityMap.put(4.826, rpmToVelocity(3650));
+    exitVelocityMap.put(5.080, rpmToVelocity(3750));
+    exitVelocityMap.put(5.334, rpmToVelocity(3800));
 
     timeOfFlightMap.put(1.0, 0.55);
     timeOfFlightMap.put(1.5, 0.65);
@@ -128,12 +127,9 @@ public final class ShooterMath {
     return MetersPerSecond.of(exitMetersPerSecond);
   }
 
-  public static LinearVelocity flywheelRpmToExitVelocity(double flywheelRpm) {
+  public static double rpmToVelocity(double flywheelRpm) {
     return flywheelVelocityToExitVelocity(
-        RadiansPerSecond.of(Units.rotationsPerMinuteToRadiansPerSecond(flywheelRpm)));
-  }
-
-  private static double rpmToExitVelocityMetersPerSecond(double rpm) {
-    return flywheelRpmToExitVelocity(rpm).in(MetersPerSecond);
+            RadiansPerSecond.of(Units.rotationsPerMinuteToRadiansPerSecond(flywheelRpm)))
+        .in(MetersPerSecond);
   }
 }

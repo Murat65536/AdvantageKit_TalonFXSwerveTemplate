@@ -11,7 +11,6 @@ import static edu.wpi.first.units.Units.Degrees;
 import static frc.robot.subsystems.shooter.ShooterConstants.HUB_TRANSLATION;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
-import com.pathplanner.lib.auto.AutoBuilder;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -21,6 +20,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
+import frc.robot.auton.Autos;
 import frc.robot.commands.DriveCommands;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.Drive;
@@ -68,6 +68,7 @@ public class RobotContainer {
   private final Extension extension;
   private final Hood hood;
   private final Shooter shooter;
+  private final Autos autos;
 
   // Simulation
   private SwerveDriveSimulation driveSimulation = null;
@@ -156,8 +157,15 @@ public class RobotContainer {
         break;
     }
 
+    autos = new Autos(drive, intake, extension, hood, shooter);
+
     // Set up auto routines
-    autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
+    autoChooser = new LoggedDashboardChooser<>("Auto Choices");
+    autoChooser.addDefaultOption("Do Nothing", Commands.none());
+    for (var trajectory : autos.getAvailableTrajectories()) {
+      autoChooser.addOption(
+          "Choreo " + trajectory.name().replace('_', ' '), autos.buildTrajectoryAuto(trajectory));
+    }
 
     // Set up SysId routines
     autoChooser.addOption(
@@ -190,8 +198,8 @@ public class RobotContainer {
     drive.setDefaultCommand(
         DriveCommands.joystickDrive(
             drive,
-            () -> controller.getLeftY(),
-            () -> controller.getLeftX(),
+            () -> -controller.getLeftY(),
+            () -> -controller.getLeftX(),
             () -> -controller.getRightX()));
     // Joystick drive command
 

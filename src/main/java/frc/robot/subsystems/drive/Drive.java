@@ -9,17 +9,12 @@ package frc.robot.subsystems.drive;
 
 import static edu.wpi.first.units.Units.*;
 
-import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.config.ModuleConfig;
-import com.pathplanner.lib.config.PIDConstants;
-import com.pathplanner.lib.config.RobotConfig;
-import com.pathplanner.lib.controllers.PPHolonomicDriveController;
-import com.pathplanner.lib.pathfinding.Pathfinding;
-import com.pathplanner.lib.util.PathPlannerLogging;
+import choreo.trajectory.SwerveSample;
 import edu.wpi.first.hal.FRCNetComm.tInstances;
 import edu.wpi.first.hal.FRCNetComm.tResourceType;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.math.Matrix;
+import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
@@ -35,14 +30,12 @@ import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
-import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.Constants;
 import frc.robot.Constants.Mode;
 import frc.robot.generated.TunerConstants;
-import frc.robot.util.LocalADStarAK;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import org.ironmaple.simulation.drivesims.COTS;
@@ -63,23 +56,12 @@ public class Drive extends SubsystemBase {
               Math.hypot(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
               Math.hypot(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)));
 
-  // PathPlanner config constants
+  // Robot model and Choreo controller constants
   private static final double ROBOT_MASS_KG = 74.088;
   private static final double ROBOT_MOI = 6.883;
   private static final double WHEEL_COF = 1.5;
-  private static final RobotConfig PP_CONFIG =
-      new RobotConfig(
-          ROBOT_MASS_KG,
-          ROBOT_MOI,
-          new ModuleConfig(
-              TunerConstants.FrontLeft.WheelRadius,
-              TunerConstants.kSpeedAt12Volts.in(MetersPerSecond),
-              WHEEL_COF,
-              DCMotor.getKrakenX60Foc(1)
-                  .withReduction(TunerConstants.FrontLeft.DriveMotorGearRatio),
-              TunerConstants.FrontLeft.SlipCurrent,
-              1),
-          getModuleTranslations());
+  private static final double CHOREO_TRANSLATION_KP = 5.0;
+  private static final double CHOREO_ROTATION_KP = 5.0;
 
   // MapleSim config
   public static final DriveTrainSimulationConfig mapleSimConfig =
@@ -106,6 +88,12 @@ public class Drive extends SubsystemBase {
   private final SysIdRoutine sysId;
   private final Alert gyroDisconnectedAlert =
       new Alert("Disconnected gyro, using kinematics as fallback.", AlertType.kError);
+  private final PIDController choreoXController =
+      new PIDController(CHOREO_TRANSLATION_KP, 0.0, 0.0);
+  private final PIDController choreoYController =
+      new PIDController(CHOREO_TRANSLATION_KP, 0.0, 0.0);
+  private final PIDController choreoHeadingController =
+      new PIDController(CHOREO_ROTATION_KP, 0.0, 0.0);
 
   private SwerveDriveKinematics kinematics = new SwerveDriveKinematics(getModuleTranslations());
   private Rotation2d rawGyroRotation = Rotation2d.kZero;
@@ -137,26 +125,7 @@ public class Drive extends SubsystemBase {
     // Start odometry thread
     PhoenixOdometryThread.getInstance().start();
 
-    // Configure AutoBuilder for PathPlanner
-    AutoBuilder.configure(
-        this::getPose,
-        this::setPose,
-        this::getChassisSpeeds,
-        this::runVelocity,
-        new PPHolonomicDriveController(
-            new PIDConstants(5.0, 0.0, 0.0), new PIDConstants(5.0, 0.0, 0.0)),
-        PP_CONFIG,
-        () -> DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red,
-        this);
-    Pathfinding.setPathfinder(new LocalADStarAK());
-    PathPlannerLogging.setLogActivePathCallback(
-        (activePath) -> {
-          Logger.recordOutput("Odometry/Trajectory", activePath.toArray(new Pose2d[0]));
-        });
-    PathPlannerLogging.setLogTargetPoseCallback(
-        (targetPose) -> {
-          Logger.recordOutput("Odometry/TrajectorySetpoint", targetPose);
-        });
+    choreoHeadingController.enableContinuousInput(-Math.PI, Math.PI);
 
     // Configure SysId
     sysId =
@@ -251,6 +220,33 @@ public class Drive extends SubsystemBase {
 
     // Log optimized setpoints (runSetpoint mutates each state)
     Logger.recordOutput("SwerveStates/SetpointsOptimized", setpointStates);
+  }
+
+  /** Runs Choreo closed-loop trajectory following from a sampled target state. */
+  public void followChoreoSample(SwerveSample sample) {
+    Pose2d currentPose = getPose();
+    double xFeedback = choreoXController.calculate(currentPose.getX(), sample.x);
+    double yFeedback = choreoYController.calculate(currentPose.getY(), sample.y);
+    double headingFeedback =
+        choreoHeadingController.calculate(currentPose.getRotation().getRadians(), sample.heading);
+
+    ChassisSpeeds targetSpeeds =
+        ChassisSpeeds.fromFieldRelativeSpeeds(
+            sample.vx + xFeedback,
+            sample.vy + yFeedback,
+            sample.omega + headingFeedback,
+            currentPose.getRotation());
+    runVelocity(targetSpeeds);
+    Logger.recordOutput("Odometry/TrajectorySetpoint", sample.getPose());
+  }
+
+  /** Resets Choreo tracking controllers to the current measured pose. */
+  public void resetChoreoControllers() {
+    Pose2d currentPose = getPose();
+    choreoXController.reset();
+    choreoYController.reset();
+    choreoHeadingController.reset();
+    choreoHeadingController.setSetpoint(currentPose.getRotation().getRadians());
   }
 
   /** Runs the drive in a straight line with the specified drive output. */
