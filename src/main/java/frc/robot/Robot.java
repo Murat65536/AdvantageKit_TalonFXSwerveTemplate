@@ -7,9 +7,17 @@
 
 package frc.robot;
 
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.IterativeRobotBase;
+import edu.wpi.first.wpilibj.Watchdog;
+import edu.wpi.first.wpilibj.simulation.RoboRioSim;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+
+import java.lang.reflect.Field;
+
 import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.seasonspecific.rebuilt2026.Arena2026Rebuilt;
 import org.littletonrobotics.junction.LogFileUtil;
@@ -71,8 +79,24 @@ public class Robot extends LoggedRobot {
     // Start AdvantageKit logger
     Logger.start();
 
-    // Instantiate our RobotContainer. This will perform all our button bindings,
-    // and put our autonomous chooser on the dashboard.
+    // Extend how long the loop overruns
+    try {
+      Field watchdogField = IterativeRobotBase.class.getDeclaredField("m_watchdog");
+      watchdogField.setAccessible(true);
+      Watchdog watchdog = (Watchdog) watchdogField.get(this);
+      watchdog.setTimeout(Constants.LOOP_PERIOD_WATCHDOG_SECONDS);
+    } catch (NoSuchFieldException | IllegalAccessException e) {
+      DriverStation.reportWarning("Failed to disable loop overrun warning", false);
+    }
+    CommandScheduler.getInstance().setPeriod(Constants.LOOP_PERIOD_WATCHDOG_SECONDS);
+
+    // Silence joystick alerts
+    DriverStation.silenceJoystickConnectionWarning(true);
+
+    // Configure DriverStation for sim
+    RoboRioSim.setTeamNumber(1038);
+
+    // Init robot container
     robotContainer = new RobotContainer();
 
     if (Constants.currentMode == Constants.Mode.SIM) {
@@ -83,19 +107,7 @@ public class Robot extends LoggedRobot {
   /** This function is called periodically during all modes. */
   @Override
   public void robotPeriodic() {
-    // Optionally switch the thread to high priority to improve loop
-    // timing (see the template project documentation for details)
-    // Threads.setCurrentThreadPriority(true, 99);
-
-    // Runs the Scheduler. This is responsible for polling buttons, adding
-    // newly-scheduled commands, running already-scheduled commands, removing
-    // finished or interrupted commands, and running subsystem periodic() methods.
-    // This must be called from the robot's periodic block in order for anything in
-    // the Command-based framework to work.
     CommandScheduler.getInstance().run();
-
-    // Return to non-RT thread priority (do not modify the first argument)
-    // Threads.setCurrentThreadPriority(false, 10);
   }
 
   /** This function is called once when the robot is disabled. */
@@ -166,5 +178,9 @@ public class Robot extends LoggedRobot {
     Logger.recordOutput("FieldSimulation/HeldFuelPositions", heldFuelPoses);
     Logger.recordOutput("FieldSimulation/HeldFuelCount", storedGamePieces);
     Logger.recordOutput("FieldSimulation/HoodPose", hoodPose);
+    Pose2d groundTruth = robotContainer.getSimulatedDriveTrainPose();
+    if (groundTruth != null) {
+      Logger.recordOutput("FieldSimulation/RobotGroundTruth", groundTruth);
+    }
   }
 }

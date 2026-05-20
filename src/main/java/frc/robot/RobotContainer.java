@@ -23,6 +23,7 @@ import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.auton.Autos;
 import frc.robot.commands.DriveCommands;
 import frc.robot.generated.TunerConstants;
+import frc.robot.generated.choreo.ChoreoTraj;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.GyroIO;
 import frc.robot.subsystems.drive.GyroIOPigeon2;
@@ -83,9 +84,6 @@ public class RobotContainer {
   public RobotContainer() {
     switch (Constants.currentMode) {
       case REAL:
-        // Real robot, instantiate hardware IO implementations
-        // ModuleIOTalonFX is intended for modules with TalonFX drive, TalonFX turn, and
-        // a CANcoder
         drive =
             new Drive(
                 new GyroIOPigeon2(),
@@ -161,8 +159,8 @@ public class RobotContainer {
 
     // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto Choices");
-    autoChooser.addDefaultOption("Do Nothing", Commands.none());
-    for (var trajectory : autos.getAvailableTrajectories()) {
+    autoChooser.addDefaultOption("No Auto", Commands.none());
+    for (ChoreoTraj trajectory : autos.getAvailableTrajectories()) {
       autoChooser.addOption(
           "Choreo " + trajectory.name().replace('_', ' '), autos.buildTrajectoryAuto(trajectory));
     }
@@ -262,5 +260,9 @@ public class RobotContainer {
   /** Returns the current hood pose for simulation visualization. */
   public Pose3d getHoodPose() {
     return hood.getPose(drive.getPose());
+  }
+
+  public Pose2d getSimulatedDriveTrainPose() {
+    return driveSimulation == null ? null : driveSimulation.getSimulatedDriveTrainPose();
   }
 }

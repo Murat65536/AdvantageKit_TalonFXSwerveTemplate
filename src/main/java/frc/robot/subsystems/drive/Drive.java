@@ -57,16 +57,18 @@ public class Drive extends SubsystemBase {
               Math.hypot(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)));
 
   // Robot model and Choreo controller constants
-  private static final double ROBOT_MASS_KG = 74.088;
-  private static final double ROBOT_MOI = 6.883;
+  private static final double ROBOT_MASS_KG = 55.79;
   private static final double WHEEL_COF = 1.5;
-  private static final double CHOREO_TRANSLATION_KP = 5.0;
-  private static final double CHOREO_ROTATION_KP = 5.0;
+  private static final double CHOREO_TRANSLATION_KP = 6.0;
+  private static final double CHOREO_TRANSLATION_KD = 0.0;
+  private static final double CHOREO_ROTATION_KP = 8.0;
+  private static final double CHOREO_ROTATION_KD = 0.1;
 
   // MapleSim config
   public static final DriveTrainSimulationConfig mapleSimConfig =
       DriveTrainSimulationConfig.Default()
           .withRobotMass(Kilograms.of(ROBOT_MASS_KG))
+          .withBumperSize(Meters.of(0.886), Meters.of(0.886))
           .withCustomModuleTranslations(getModuleTranslations())
           .withGyro(COTS.ofPigeon2())
           .withSwerveModule(
@@ -89,11 +91,11 @@ public class Drive extends SubsystemBase {
   private final Alert gyroDisconnectedAlert =
       new Alert("Disconnected gyro, using kinematics as fallback.", AlertType.kError);
   private final PIDController choreoXController =
-      new PIDController(CHOREO_TRANSLATION_KP, 0.0, 0.0);
+      new PIDController(CHOREO_TRANSLATION_KP, 0.0, CHOREO_TRANSLATION_KD);
   private final PIDController choreoYController =
-      new PIDController(CHOREO_TRANSLATION_KP, 0.0, 0.0);
+      new PIDController(CHOREO_TRANSLATION_KP, 0.0, CHOREO_TRANSLATION_KD);
   private final PIDController choreoHeadingController =
-      new PIDController(CHOREO_ROTATION_KP, 0.0, 0.0);
+      new PIDController(CHOREO_ROTATION_KP, 0.0, CHOREO_ROTATION_KD);
 
   private SwerveDriveKinematics kinematics = new SwerveDriveKinematics(getModuleTranslations());
   private Rotation2d rawGyroRotation = Rotation2d.kZero;
@@ -238,6 +240,16 @@ public class Drive extends SubsystemBase {
             currentPose.getRotation());
     runVelocity(targetSpeeds);
     Logger.recordOutput("Odometry/TrajectorySetpoint", sample.getPose());
+
+    // Per-axis tracking error. Heading wrapped to [-pi, pi] via Rotation2d subtraction.
+    Logger.recordOutput("Choreo/ErrorX", sample.x - currentPose.getX());
+    Logger.recordOutput("Choreo/ErrorY", sample.y - currentPose.getY());
+    Logger.recordOutput(
+        "Choreo/ErrorHeading",
+        new Rotation2d(sample.heading).minus(currentPose.getRotation()).getRadians());
+    Logger.recordOutput(
+        "Choreo/ErrorTranslation",
+        sample.getPose().getTranslation().getDistance(currentPose.getTranslation()));
   }
 
   /** Resets Choreo tracking controllers to the current measured pose. */
