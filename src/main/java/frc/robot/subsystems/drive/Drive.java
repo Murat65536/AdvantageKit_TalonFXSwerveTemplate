@@ -60,8 +60,8 @@ public class Drive extends SubsystemBase {
   // Robot model and Choreo controller constants
   private static final double ROBOT_MASS_KG = 55.79;
   private static final double WHEEL_COF = 1.5;
-  private static final double CHOREO_TRANSLATION_KP = 10.0;
-  private static final double CHOREO_TRANSLATION_KD = 0.0;
+  private static final double CHOREO_TRANSLATION_KP = 4.0;
+  private static final double CHOREO_TRANSLATION_KD = 0.1;
   private static final double CHOREO_ROTATION_KP = 7.5;
   private static final double CHOREO_ROTATION_KD = 0.0;
 
@@ -247,23 +247,39 @@ public class Drive extends SubsystemBase {
 
   /** Runs Choreo closed-loop trajectory following from a sampled target state. */
   public void followChoreoSample(SwerveSample sample) {
+    followChoreoSample(sample, 1.0);
+  }
+
+  /**
+   * Runs Choreo trajectory following with a clock-governor factor. The feedforward terms are scaled
+   * by {@code governorFactor} (velocity by f, acceleration by f^2): when the governor slows or
+   * pauses the trajectory clock, the setpoint moves slower than {@code sample.vx} reports, so the
+   * feedforward is scaled to match while the position PID still pulls the robot to the (possibly
+   * frozen) setpoint.
+   */
+  public void followChoreoSample(SwerveSample sample, double governorFactor) {
     Pose2d currentPose = getPose();
     double xFeedback = choreoXController.calculate(currentPose.getX(), sample.x);
     double yFeedback = choreoYController.calculate(currentPose.getY(), sample.y);
     double headingFeedback =
         choreoHeadingController.calculate(currentPose.getRotation().getRadians(), sample.heading);
 
+    double velScale = governorFactor;
+    double accelScale = governorFactor * governorFactor;
     ChassisSpeeds targetSpeeds =
         ChassisSpeeds.fromFieldRelativeSpeeds(
-            sample.vx + xFeedback,
-            sample.vy + yFeedback,
-            sample.omega + headingFeedback,
+            sample.vx * velScale + xFeedback,
+            sample.vy * velScale + yFeedback,
+            sample.omega * velScale + headingFeedback,
             currentPose.getRotation());
     // Feed the trajectory's acceleration forward so the drive controllers anticipate it instead of
     // lagging and relying on the position PID to catch up.
     ChassisSpeeds targetAccelerations =
         ChassisSpeeds.fromFieldRelativeSpeeds(
-            sample.ax, sample.ay, sample.alpha, currentPose.getRotation());
+            sample.ax * accelScale,
+            sample.ay * accelScale,
+            sample.alpha * accelScale,
+            currentPose.getRotation());
     runVelocity(targetSpeeds, targetAccelerations);
     Logger.recordOutput("Odometry/TrajectorySetpoint", sample.getPose());
 

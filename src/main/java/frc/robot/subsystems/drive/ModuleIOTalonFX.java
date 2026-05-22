@@ -13,8 +13,8 @@ import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.CANcoderConfiguration;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.PositionTorqueCurrentFOC;
-import com.ctre.phoenix6.controls.PositionVoltage;
+import com.ctre.phoenix6.controls.MotionMagicExpoTorqueCurrentFOC;
+import com.ctre.phoenix6.controls.MotionMagicExpoVoltage;
 import com.ctre.phoenix6.controls.TorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityTorqueCurrentFOC;
 import com.ctre.phoenix6.controls.VelocityVoltage;
@@ -55,13 +55,13 @@ public class ModuleIOTalonFX implements ModuleIO {
 
   // Voltage control requests
   private final VoltageOut voltageRequest = new VoltageOut(0);
-  private final PositionVoltage positionVoltageRequest = new PositionVoltage(0.0);
+  private final MotionMagicExpoVoltage motionMagicVoltageRequest = new MotionMagicExpoVoltage(0.0);
   private final VelocityVoltage velocityVoltageRequest = new VelocityVoltage(0.0);
 
   // Torque-current control requests
   private final TorqueCurrentFOC torqueCurrentRequest = new TorqueCurrentFOC(0);
-  private final PositionTorqueCurrentFOC positionTorqueCurrentRequest =
-      new PositionTorqueCurrentFOC(0.0);
+  private final MotionMagicExpoTorqueCurrentFOC motionMagicTorqueCurrentRequest =
+      new MotionMagicExpoTorqueCurrentFOC(0.0);
   private final VelocityTorqueCurrentFOC velocityTorqueCurrentRequest =
       new VelocityTorqueCurrentFOC(0.0);
 
@@ -266,8 +266,8 @@ public class ModuleIOTalonFX implements ModuleIO {
   public void setTurnPosition(Rotation2d rotation) {
     turnTalon.setControl(
         switch (constants.SteerMotorClosedLoopOutput) {
-          case Voltage -> positionVoltageRequest.withPosition(rotation.getRotations());
-          case TorqueCurrentFOC -> positionTorqueCurrentRequest.withPosition(
+          case Voltage -> motionMagicVoltageRequest.withPosition(rotation.getRotations());
+          case TorqueCurrentFOC -> motionMagicTorqueCurrentRequest.withPosition(
               rotation.getRotations());
         });
   }

@@ -185,3 +185,6 @@ compile_commands.json
 
 # Version file
 src/main/java/frc/robot/BuildConstants.java
+
+# Local JDK pin (machine-specific path, not for the repo)
+gradle.properties

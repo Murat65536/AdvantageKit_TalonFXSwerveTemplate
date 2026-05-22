@@ -64,7 +64,10 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 public class RobotContainer {
   // Subsystems
   private final Drive drive;
+
+  @SuppressWarnings("unused")
   private final Vision vision;
+
   private final Intake intake;
   private final Extension extension;
   private final Hood hood;

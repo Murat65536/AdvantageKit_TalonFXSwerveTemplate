@@ -98,6 +98,14 @@ public class PhoenixUtil {
       SwerveModuleConstants<?, ?, ?> moduleConstants) {
     if (RobotBase.isReal()) return moduleConstants;
 
+    // Drive velocity feedforward, in mechanism (wheel) rotation units. The drive closed loop
+    // runs in mechanism units (SensorToMechanismRatio = drive gear ratio), so kV must be the
+    // voltage that sustains the wheel's free speed: 12 V at SpeedAt12Volts. The prior hardcoded
+    // 0.124 was a rotor-unit value (~gear-ratio times too small), which starved the velocity
+    // loop and capped the simulated robot near 3 m/s instead of its rated SpeedAt12Volts.
+    double driveKv =
+        12.0 / (moduleConstants.SpeedAt12Volts / (2.0 * Math.PI * moduleConstants.WheelRadius));
+
     return moduleConstants
         .withEncoderOffset(0)
         .withDriveMotorInverted(false)
@@ -108,9 +116,14 @@ public class PhoenixUtil {
                 .withKP(2.0)
                 .withKI(0)
                 .withKD(0.05)
-                .withKS(0)
-                .withKV(0.124)
-                .withKA(0)
+                // kS (static friction) and kA (acceleration) are physical feedforward
+                // constants of the drivetrain, the same in sim and real -- they match
+                // TunerConstants.driveGains. The sim previously zeroed them, which dropped
+                // friction compensation and acceleration anticipation; the missing kA
+                // showed up as a heading-tracking lag during hard rotation (high alpha).
+                .withKS(0.18)
+                .withKV(driveKv)
+                .withKA(0.06)
                 .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign))
         .withSteerMotorGains(
             new Slot0Configs()

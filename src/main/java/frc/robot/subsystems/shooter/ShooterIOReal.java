@@ -49,7 +49,7 @@ public class ShooterIOReal implements ShooterIO {
         bottomLeftMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
     SparkFlexConfig bottomRightMotorConfig = new SparkFlexConfig();
-    bottomRightMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor).inverted(true).flatten();
+    bottomRightMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor).inverted(true);
     bottomRightMotor.configure(
         bottomRightMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
   }
@@ -65,7 +65,12 @@ public class ShooterIOReal implements ShooterIO {
 
     inputs.velocity = RPM.of(encoder.getVelocity());
     inputs.voltageOut = Volts.of(topLeftMotor.getAppliedOutput() * topLeftMotor.getBusVoltage());
-    inputs.currentOut = Amps.of(topLeftMotor.getOutputCurrent() + topRightMotor.getOutputCurrent());
+    inputs.currentOut =
+        Amps.of(
+            topLeftMotor.getOutputCurrent()
+                + topRightMotor.getOutputCurrent()
+                + bottomLeftMotor.getOutputCurrent()
+                + bottomRightMotor.getOutputCurrent());
     inputs.temp =
         Celsius.of(
             Math.max(

@@ -20,7 +20,6 @@ public class ExtensionConstants {
   public static final double MIN_POSITION_ROT = 0.0;
   public static final double MAX_POSITION_ROT = 4.0;
   public static final double SIM_RPS_PER_VOLT = 0.75;
-  public static final double FULLY_EXTENDED_TOLERANCE_ROT = 0.05;
 
   // AdvantageScope component pose model (robot-relative)
   public static final Translation3d COMPONENT_ZERO_TRANSLATION = new Translation3d(0, 0, 0);
