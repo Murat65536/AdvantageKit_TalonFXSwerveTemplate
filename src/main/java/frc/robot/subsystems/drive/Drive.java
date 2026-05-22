@@ -60,10 +60,10 @@ public class Drive extends SubsystemBase {
   // Robot model and Choreo controller constants
   private static final double ROBOT_MASS_KG = 55.79;
   private static final double WHEEL_COF = 1.5;
-  private static final double CHOREO_TRANSLATION_KP = 6.0;
+  private static final double CHOREO_TRANSLATION_KP = 10.0;
   private static final double CHOREO_TRANSLATION_KD = 0.0;
-  private static final double CHOREO_ROTATION_KP = 8.0;
-  private static final double CHOREO_ROTATION_KD = 0.1;
+  private static final double CHOREO_ROTATION_KP = 7.5;
+  private static final double CHOREO_ROTATION_KD = 0.0;
 
   // MapleSim config
   public static final DriveTrainSimulationConfig mapleSimConfig =
@@ -208,10 +208,26 @@ public class Drive extends SubsystemBase {
    * @param speeds Speeds in meters/sec
    */
   public void runVelocity(ChassisSpeeds speeds) {
+    runVelocity(speeds, new ChassisSpeeds());
+  }
+
+  /**
+   * Runs the drive at the desired velocity with a robot-relative acceleration feedforward.
+   *
+   * @param speeds Speeds in meters/sec (robot relative)
+   * @param accelerations Accelerations in meters/sec^2 and rad/sec^2 (robot relative), fed forward
+   *     to the drive velocity controllers
+   */
+  public void runVelocity(ChassisSpeeds speeds, ChassisSpeeds accelerations) {
     // Calculate module setpoints
     ChassisSpeeds discreteSpeeds = ChassisSpeeds.discretize(speeds, 0.02);
     SwerveModuleState[] setpointStates = kinematics.toSwerveModuleStates(discreteSpeeds);
     SwerveDriveKinematics.desaturateWheelSpeeds(setpointStates, TunerConstants.kSpeedAt12Volts);
+
+    // Per-module acceleration feedforward vectors derived from the chassis acceleration. Swerve
+    // kinematics is linear, so the same transform used for velocities maps chassis acceleration to
+    // per-module acceleration vectors (the centripetal term is negligible as a feedforward).
+    SwerveModuleState[] accelerationStates = kinematics.toSwerveModuleStates(accelerations);
 
     // Log unoptimized setpoints and setpoint speeds
     Logger.recordOutput("SwerveStates/Setpoints", setpointStates);
@@ -219,7 +235,10 @@ public class Drive extends SubsystemBase {
 
     // Send setpoints to modules
     for (int i = 0; i < 4; i++) {
-      modules[i].runSetpoint(setpointStates[i]);
+      Translation2d accelerationVector =
+          new Translation2d(
+              accelerationStates[i].speedMetersPerSecond, accelerationStates[i].angle);
+      modules[i].runSetpoint(setpointStates[i], accelerationVector);
     }
 
     // Log optimized setpoints (runSetpoint mutates each state)
@@ -240,7 +259,12 @@ public class Drive extends SubsystemBase {
             sample.vy + yFeedback,
             sample.omega + headingFeedback,
             currentPose.getRotation());
-    runVelocity(targetSpeeds);
+    // Feed the trajectory's acceleration forward so the drive controllers anticipate it instead of
+    // lagging and relying on the position PID to catch up.
+    ChassisSpeeds targetAccelerations =
+        ChassisSpeeds.fromFieldRelativeSpeeds(
+            sample.ax, sample.ay, sample.alpha, currentPose.getRotation());
+    runVelocity(targetSpeeds, targetAccelerations);
     Logger.recordOutput("Odometry/TrajectorySetpoint", sample.getPose());
 
     // Per-axis tracking error. Heading wrapped to [-pi, pi] via Rotation2d subtraction.

@@ -31,8 +31,12 @@ public class TunerConstants {
           .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign);
   // When using closed-loop control, the drive motor uses the control
   // output type specified by SwerveModuleConstants.DriveMotorClosedLoopOutput
+  // The drive closed loop runs in mechanism (wheel) rotations because
+  // Feedback.SensorToMechanismRatio is set to the drive gear ratio in ModuleIOTalonFX. The
+  // Tuner-default kP/kV (0.1 / 0.124) are rotor-referenced, so they are scaled by the gear ratio
+  // (6.3947) to apply in wheel units. kS overcomes friction and kA feeds forward acceleration.
   private static final Slot0Configs driveGains =
-      new Slot0Configs().withKP(0.1).withKI(0).withKD(0).withKS(0).withKV(0.124);
+      new Slot0Configs().withKP(0.64).withKI(0).withKD(0).withKS(0.18).withKV(0.793).withKA(0.06);
 
   // The closed-loop output type to use for the steer motors;
   // This affects the PID/FF gains for the steer motors
