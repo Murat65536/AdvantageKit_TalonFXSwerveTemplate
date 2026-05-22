@@ -114,6 +114,7 @@ public class RobotContainer {
                 new ModuleIOTalonFXSim(TunerConstants.FrontRight, driveSimulation.getModules()[1]),
                 new ModuleIOTalonFXSim(TunerConstants.BackLeft, driveSimulation.getModules()[2]),
                 new ModuleIOTalonFXSim(TunerConstants.BackRight, driveSimulation.getModules()[3]));
+        drive.setSimPoseConsumer(driveSimulation::setSimulationWorldPose);
         vision =
             new Vision(
                 drive::addVisionMeasurement,

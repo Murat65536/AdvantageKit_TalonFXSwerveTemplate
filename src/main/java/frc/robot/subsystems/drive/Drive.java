@@ -38,6 +38,7 @@ import frc.robot.Constants.Mode;
 import frc.robot.generated.TunerConstants;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import org.ironmaple.simulation.drivesims.COTS;
 import org.ironmaple.simulation.drivesims.configs.DriveTrainSimulationConfig;
 import org.ironmaple.simulation.drivesims.configs.SwerveModuleSimulationConfig;
@@ -96,6 +97,7 @@ public class Drive extends SubsystemBase {
       new PIDController(CHOREO_TRANSLATION_KP, 0.0, CHOREO_TRANSLATION_KD);
   private final PIDController choreoHeadingController =
       new PIDController(CHOREO_ROTATION_KP, 0.0, CHOREO_ROTATION_KD);
+  private Consumer<Pose2d> simPoseConsumer = null;
 
   private SwerveDriveKinematics kinematics = new SwerveDriveKinematics(getModuleTranslations());
   private Rotation2d rawGyroRotation = Rotation2d.kZero;
@@ -360,6 +362,13 @@ public class Drive extends SubsystemBase {
   /** Resets the current odometry pose. */
   public void setPose(Pose2d pose) {
     poseEstimator.resetPosition(rawGyroRotation, getModulePositions(), pose);
+    if (simPoseConsumer != null) {
+      simPoseConsumer.accept(pose);
+    }
+  }
+
+  public void setSimPoseConsumer(Consumer<Pose2d> simPoseConsumer) {
+    this.simPoseConsumer = simPoseConsumer;
   }
 
   /** Adds a new timestamped vision measurement. */

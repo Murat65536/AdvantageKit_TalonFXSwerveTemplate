@@ -43,8 +43,8 @@ public class Autos {
         .active()
         .onTrue(
             Commands.sequence(
-                Commands.runOnce(drive::resetChoreoControllers, drive),
                 autoTrajectory.resetOdometry(),
+                Commands.runOnce(drive::resetChoreoControllers, drive),
                 autoTrajectory.cmd()));
 
     return routine.cmd().withName("Auto_" + trajectory.name());
