@@ -49,8 +49,7 @@ public class Extension extends SubsystemBase {
 
   /** True when the extension has reached the forward limit switch. */
   public boolean isFullyExtended() {
-    return inputs.forwardLimitPressed
-        || inputs.position.in(Rotations) >= (MAX_POSITION_ROT - FULLY_EXTENDED_TOLERANCE_ROT);
+    return inputs.forwardLimitPressed;
   }
 
   public BooleanSupplier fullyExtendedSupplier() {
@@ -61,8 +60,8 @@ public class Extension extends SubsystemBase {
     double extensionMeters =
         MathUtil.clamp(
             inputs.position.in(Rotations) * COMPONENT_METERS_PER_ROTATION,
-            MIN_POSITION_ROT,
-            MAX_POSITION_ROT);
+            MIN_POSITION_ROT * COMPONENT_METERS_PER_ROTATION,
+            MAX_POSITION_ROT * COMPONENT_METERS_PER_ROTATION);
     double slopeRad = Math.toRadians(COMPONENT_SLOPE_DEG);
     double xDeltaMeters = extensionMeters * Math.cos(slopeRad);
     double zDeltaMeters = -extensionMeters * Math.sin(slopeRad);
