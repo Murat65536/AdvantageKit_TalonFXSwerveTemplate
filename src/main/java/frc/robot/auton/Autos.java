@@ -45,7 +45,14 @@ public class Autos {
             Commands.sequence(
                 autoTrajectory.resetOdometry(),
                 Commands.runOnce(drive::resetChoreoControllers, drive),
-                autoTrajectory.cmd()));
+                autoTrajectory.cmd(),
+                // Hold the endpoint after the trajectory ends so the position controllers settle
+                // the
+                // robot onto it instead of coasting past (ChoreoLib's cmd() stops correcting once
+                // the trajectory time elapses).
+                drive.run(
+                    () ->
+                        drive.holdPose(autoTrajectory.getFinalPose().orElseGet(drive::getPose)))));
 
     return routine.cmd().withName("Auto_" + trajectory.name());
   }

@@ -108,22 +108,42 @@ public class PhoenixUtil {
                 .withKP(2.0)
                 .withKI(0)
                 .withKD(0.05)
-                .withKS(0)
-                .withKV(0.124)
-                .withKA(0)
+                .withKS(moduleConstants.DriveFrictionVoltage)
+                // kV must be in WHEEL (mechanism) units: ModuleIOTalonFX sets
+                // Feedback.SensorToMechanismRatio = DriveMotorGearRatio, so the closed loop runs in
+                // wheel rotations. Reuse the robot's characterized drive kV (~0.85 V/wheel-rps)
+                // here
+                // instead of the rotor-referenced 0.124, which was ~gearRatio too small and starved
+                // the velocity feedforward at speed.
+                .withKV(moduleConstants.DriveMotorGains.kV)
+                // Acceleration feedforward in WHEEL units (V per wheel-rot/s^2). Model-derived for
+                // the maple-sim Kraken X60 FOC: kA = R*(m/4)*r^2/(G*kt) * 2pi ~= 0.045, with
+                // R = 12/483, kt = 9.37/483, m = robot mass, G = DriveMotorGearRatio, r = wheel
+                // radius. Anticipates the trajectory's accel/decel so the robot tracks the final
+                // braking and stops on the endpoint instead of coasting past it. Bump toward ~0.05
+                // (rotor/wheel inertia) or refine with the wired SysId routines if overshoot
+                // remains.
+                .withKA(0.045)
                 .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseVelocitySign))
         .withSteerMotorGains(
             new Slot0Configs()
-                .withKP(70)
+                // The template's kP=70 is unstable against the maple-sim steer model (low simulated
+                // inertia + discrete loop): the azimuth oscillates past optimize()'s 180 deg flip
+                // boundary and the modules spin, so the robot can't rotate at all. kP=15 is stable
+                // and tracks pure rotation to ~3.9 rad/s. These gains were never validated on
+                // hardware; re-tune on the real robot.
+                .withKP(15)
                 .withKI(0)
-                .withKD(4.5)
-                .withKS(0)
-                .withKV(1.91)
+                .withKD(0.0)
+                .withKS(moduleConstants.SteerFrictionVoltage)
+                // Azimuth-referenced kV (FusedCANcoder mechanism). Reuse the characterized steer kV
+                // (~1.16 for the X44) rather than the old 1.91 tuned for a slower steer motor.
+                .withKV(moduleConstants.SteerMotorGains.kV)
                 .withKA(0)
-                .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign))
-        .withSteerMotorGearRatio(16.0)
-        .withDriveFrictionVoltage(Volts.of(0.1))
-        .withSteerFrictionVoltage(Volts.of(0.05))
-        .withSteerInertia(KilogramSquareMeters.of(0.05));
+                .withStaticFeedforwardSign(StaticFeedforwardSignValue.UseClosedLoopSign));
+    // .withSteerMotorGearRatio(16.0)
+    // .withDriveFrictionVoltage(Volts.of(0.1))
+    // .withSteerFrictionVoltage(Volts.of(0.05))
+    // .withSteerInertia(KilogramSquareMeters.of(0.05));
   }
 }

@@ -165,6 +165,12 @@ public class Robot extends LoggedRobot {
   /** This function is called periodically whilst in simulation. */
   @Override
   public void simulationPeriodic() {
+    // Skip physics sim and sim-only logging during replay; those outputs are not part of the
+    // replay source and would be recomputed from a non-deterministic physics sim.
+    if (Constants.currentMode != Constants.Mode.SIM) {
+      return;
+    }
+
     SimulatedArena.getInstance().simulationPeriodic();
 
     int storedGamePieces = robotContainer.getStoredGamePieces();

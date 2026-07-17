@@ -26,7 +26,6 @@ import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.math.numbers.N1;
 import edu.wpi.first.math.numbers.N3;
-import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -39,51 +38,10 @@ import frc.robot.generated.TunerConstants;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
-import org.ironmaple.simulation.drivesims.COTS;
-import org.ironmaple.simulation.drivesims.configs.DriveTrainSimulationConfig;
-import org.ironmaple.simulation.drivesims.configs.SwerveModuleSimulationConfig;
 import org.littletonrobotics.junction.AutoLogOutput;
 import org.littletonrobotics.junction.Logger;
 
 public class Drive extends SubsystemBase {
-  // TunerConstants doesn't include these constants, so they are declared locally
-  static final double ODOMETRY_FREQUENCY = TunerConstants.kCANBus.isNetworkFD() ? 250.0 : 100.0;
-  public static final double DRIVE_BASE_RADIUS =
-      Math.max(
-          Math.max(
-              Math.hypot(TunerConstants.FrontLeft.LocationX, TunerConstants.FrontLeft.LocationY),
-              Math.hypot(TunerConstants.FrontRight.LocationX, TunerConstants.FrontRight.LocationY)),
-          Math.max(
-              Math.hypot(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
-              Math.hypot(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)));
-
-  // Robot model and Choreo controller constants
-  private static final double ROBOT_MASS_KG = 55.79;
-  private static final double WHEEL_COF = 1.5;
-  private static final double CHOREO_TRANSLATION_KP = 10.0;
-  private static final double CHOREO_TRANSLATION_KD = 0.0;
-  private static final double CHOREO_ROTATION_KP = 7.5;
-  private static final double CHOREO_ROTATION_KD = 0.0;
-
-  // MapleSim config
-  public static final DriveTrainSimulationConfig mapleSimConfig =
-      DriveTrainSimulationConfig.Default()
-          .withRobotMass(Kilograms.of(ROBOT_MASS_KG))
-          .withBumperSize(Meters.of(0.886), Meters.of(0.886))
-          .withCustomModuleTranslations(getModuleTranslations())
-          .withGyro(COTS.ofPigeon2())
-          .withSwerveModule(
-              new SwerveModuleSimulationConfig(
-                  DCMotor.getKrakenX60Foc(1),
-                  DCMotor.getKrakenX44Foc(1),
-                  TunerConstants.FrontLeft.DriveMotorGearRatio,
-                  TunerConstants.FrontLeft.SteerMotorGearRatio,
-                  Volts.of(TunerConstants.FrontLeft.DriveFrictionVoltage),
-                  Volts.of(TunerConstants.FrontLeft.SteerFrictionVoltage),
-                  Meters.of(TunerConstants.FrontLeft.WheelRadius),
-                  KilogramSquareMeters.of(TunerConstants.FrontLeft.SteerInertia),
-                  WHEEL_COF));
-
   static final Lock odometryLock = new ReentrantLock();
   private final GyroIO gyroIO;
   private final GyroIOInputsAutoLogged gyroInputs = new GyroIOInputsAutoLogged();
@@ -92,14 +50,17 @@ public class Drive extends SubsystemBase {
   private final Alert gyroDisconnectedAlert =
       new Alert("Disconnected gyro, using kinematics as fallback.", AlertType.kError);
   private final PIDController choreoXController =
-      new PIDController(CHOREO_TRANSLATION_KP, 0.0, CHOREO_TRANSLATION_KD);
+      new PIDController(
+          DriveConstants.CHOREO_TRANSLATION_KP, 0.0, DriveConstants.CHOREO_TRANSLATION_KD);
   private final PIDController choreoYController =
-      new PIDController(CHOREO_TRANSLATION_KP, 0.0, CHOREO_TRANSLATION_KD);
+      new PIDController(
+          DriveConstants.CHOREO_TRANSLATION_KP, 0.0, DriveConstants.CHOREO_TRANSLATION_KD);
   private final PIDController choreoHeadingController =
-      new PIDController(CHOREO_ROTATION_KP, 0.0, CHOREO_ROTATION_KD);
+      new PIDController(DriveConstants.CHOREO_ROTATION_KP, 0.0, DriveConstants.CHOREO_ROTATION_KD);
   private Consumer<Pose2d> simPoseConsumer = null;
 
-  private SwerveDriveKinematics kinematics = new SwerveDriveKinematics(getModuleTranslations());
+  private SwerveDriveKinematics kinematics =
+      new SwerveDriveKinematics(DriveConstants.getModuleTranslations());
   private Rotation2d rawGyroRotation = Rotation2d.kZero;
   private SwerveModulePosition[] lastModulePositions = // For delta tracking
       new SwerveModulePosition[] {
@@ -287,6 +248,25 @@ public class Drive extends SubsystemBase {
     choreoHeadingController.setSetpoint(currentPose.getRotation().getRadians());
   }
 
+  /**
+   * Holds a fixed field pose using the Choreo position controllers with zero feedforward. Reuses
+   * the same controllers as {@link #followChoreoSample}, so their derivative state carries over and
+   * the robot is actively settled onto the endpoint after a trajectory ends instead of coasting
+   * past it.
+   */
+  public void holdPose(Pose2d target) {
+    Pose2d currentPose = getPose();
+    double xFeedback = choreoXController.calculate(currentPose.getX(), target.getX());
+    double yFeedback = choreoYController.calculate(currentPose.getY(), target.getY());
+    double headingFeedback =
+        choreoHeadingController.calculate(
+            currentPose.getRotation().getRadians(), target.getRotation().getRadians());
+    runVelocity(
+        ChassisSpeeds.fromFieldRelativeSpeeds(
+            xFeedback, yFeedback, headingFeedback, currentPose.getRotation()));
+    Logger.recordOutput("Choreo/HoldTarget", target);
+  }
+
   /** Runs the drive in a straight line with the specified drive output. */
   public void runCharacterization(double output) {
     for (int i = 0; i < 4; i++) {
@@ -306,7 +286,7 @@ public class Drive extends SubsystemBase {
   public void stopWithX() {
     Rotation2d[] headings = new Rotation2d[4];
     for (int i = 0; i < 4; i++) {
-      headings[i] = getModuleTranslations()[i].getAngle();
+      headings[i] = DriveConstants.getModuleTranslations()[i].getAngle();
     }
     kinematics.resetHeadings(headings);
     stop();
@@ -411,16 +391,6 @@ public class Drive extends SubsystemBase {
 
   /** Returns the maximum angular speed in radians per sec. */
   public double getMaxAngularSpeedRadPerSec() {
-    return getMaxLinearSpeedMetersPerSec() / DRIVE_BASE_RADIUS;
-  }
-
-  /** Returns an array of module translations. */
-  public static Translation2d[] getModuleTranslations() {
-    return new Translation2d[] {
-      new Translation2d(TunerConstants.FrontLeft.LocationX, TunerConstants.FrontLeft.LocationY),
-      new Translation2d(TunerConstants.FrontRight.LocationX, TunerConstants.FrontRight.LocationY),
-      new Translation2d(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
-      new Translation2d(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)
-    };
+    return getMaxLinearSpeedMetersPerSec() / DriveConstants.DRIVE_BASE_RADIUS;
   }
 }
