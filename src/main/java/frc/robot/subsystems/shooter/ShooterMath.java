@@ -5,110 +5,148 @@ import static frc.robot.subsystems.shooter.ShooterConstants.*;
 
 import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.interpolation.InterpolatingDoubleTreeMap;
+import edu.wpi.first.math.interpolation.Interpolatable;
+import edu.wpi.first.math.interpolation.InterpolatingTreeMap;
+import edu.wpi.first.math.interpolation.InverseInterpolator;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Time;
-import java.util.Optional;
+import frc.robot.FieldConstants;
 
 public final class ShooterMath {
-  private static final InterpolatingDoubleTreeMap exitVelocityMap =
-      new InterpolatingDoubleTreeMap();
-  private static final InterpolatingDoubleTreeMap timeOfFlightMap =
-      new InterpolatingDoubleTreeMap();
-  private static final Angle fixedLaunchAngle = Degrees.of(59.0);
+  /** One row of the shot table: flywheel RPM, hood launch angle, and time of flight. */
+  public record ShotParameters(double rpm, double angleDeg, double tofSeconds)
+      implements Interpolatable<ShotParameters> {
+    @Override
+    public ShotParameters interpolate(ShotParameters end, double t) {
+      return new ShotParameters(
+          MathUtil.interpolate(rpm, end.rpm, t),
+          MathUtil.interpolate(angleDeg, end.angleDeg, t),
+          MathUtil.interpolate(tofSeconds, end.tofSeconds, t));
+    }
+  }
+
+  /**
+   * Shot table keyed by horizontal distance (m) from the shooter exit to the target. Values outside
+   * the table are clamped to the nearest end, so the robot always produces a shot.
+   *
+   * <p>RPM column was tuned on the robot with the hood fixed at 59 deg; the angle column is 59 deg
+   * throughout until per-distance hood angles are tuned.
+   */
+  private static final InterpolatingTreeMap<Double, ShotParameters> shotTable =
+      new InterpolatingTreeMap<>(InverseInterpolator.forDouble(), ShotParameters::interpolate);
+
   private static final double minDistanceMeters;
   private static final double maxDistanceMeters;
 
-  private ShooterMath() {}
-
   static {
-    exitVelocityMap.put(2.286, rpmToVelocity(2650));
-    exitVelocityMap.put(2.540, rpmToVelocity(2700));
-    exitVelocityMap.put(2.794, rpmToVelocity(2800));
-    exitVelocityMap.put(3.048, rpmToVelocity(2900));
-    exitVelocityMap.put(3.302, rpmToVelocity(3000));
-    exitVelocityMap.put(3.556, rpmToVelocity(3100));
-    exitVelocityMap.put(3.810, rpmToVelocity(3250));
-    exitVelocityMap.put(4.064, rpmToVelocity(3300));
-    exitVelocityMap.put(4.318, rpmToVelocity(3400));
-    exitVelocityMap.put(4.572, rpmToVelocity(3500));
-    exitVelocityMap.put(4.826, rpmToVelocity(3650));
-    exitVelocityMap.put(5.080, rpmToVelocity(3750));
-    exitVelocityMap.put(5.334, rpmToVelocity(3800));
+    shotTable.put(Units.inchesToMeters(90), new ShotParameters(2650, 59.0, 0.86));
+    shotTable.put(Units.inchesToMeters(100), new ShotParameters(2700, 59.0, 0.93));
+    shotTable.put(Units.inchesToMeters(110), new ShotParameters(2800, 59.0, 1.00));
+    shotTable.put(Units.inchesToMeters(120), new ShotParameters(2900, 59.0, 1.06));
+    shotTable.put(Units.inchesToMeters(130), new ShotParameters(3000, 59.0, 1.13));
+    shotTable.put(Units.inchesToMeters(140), new ShotParameters(3100, 59.0, 1.20));
+    shotTable.put(Units.inchesToMeters(150), new ShotParameters(3250, 59.0, 1.25));
+    shotTable.put(Units.inchesToMeters(160), new ShotParameters(3300, 59.0, 1.32));
+    shotTable.put(Units.inchesToMeters(170), new ShotParameters(3400, 59.0, 1.39));
+    shotTable.put(Units.inchesToMeters(180), new ShotParameters(3500, 59.0, 1.45));
+    shotTable.put(Units.inchesToMeters(190), new ShotParameters(3650, 59.0, 1.45));
+    shotTable.put(Units.inchesToMeters(200), new ShotParameters(3750, 59.0, 1.45));
+    shotTable.put(Units.inchesToMeters(210), new ShotParameters(3800, 59.0, 1.45));
 
-    timeOfFlightMap.put(1.0, 0.55);
-    timeOfFlightMap.put(1.5, 0.65);
-    timeOfFlightMap.put(2.0, 0.78);
-    timeOfFlightMap.put(2.5, 0.92);
-    timeOfFlightMap.put(3.0, 1.05);
-    timeOfFlightMap.put(3.5, 1.18);
-    timeOfFlightMap.put(4.0, 1.30);
-    timeOfFlightMap.put(4.5, 1.45);
-
-    minDistanceMeters = 2.286;
-    maxDistanceMeters = 5.334;
+    minDistanceMeters = Units.inchesToMeters(90);
+    maxDistanceMeters = Units.inchesToMeters(210);
   }
 
+  private ShooterMath() {}
+
   public record ShotSolution(
+      Translation2d target,
       LinearVelocity exitVelocity,
+      AngularVelocity flywheelVelocity,
       Angle launchAngle,
       Time timeOfFlight,
       double distanceMeters,
-      double frontEdgeDistanceMeters,
-      double rpmLookupDistanceMeters) {}
+      boolean inRange) {}
+
+  /** Field position of the shooter exit for the given robot pose. */
+  public static Translation2d getLaunchTranslation(Pose2d robotPose) {
+    return robotPose
+        .getTranslation()
+        .plus(new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0).rotateBy(robotPose.getRotation()));
+  }
+
+  /** The point the shooter should aim at from the given robot pose (hub or corner fallback). */
+  public static Translation2d getTarget(Pose2d robotPose) {
+    return FieldConstants.targetPosition(robotPose.getTranslation());
+  }
 
   /**
-   * Map-based launch model: apply lookahead from chassis velocity, then interpolate speed and angle
-   * by distance.
+   * Heading the robot must face so its (rear-facing) shooter points at the target, optionally from
+   * a lookahead launch position.
    */
-  public static Optional<ShotSolution> calculateShotForHub(
-      Pose2d robotPose, ChassisSpeeds fieldRelativeSpeeds) {
-    Translation2d launchTranslation =
-        robotPose
-            .getTranslation()
-            .plus(
-                new Translation2d(SHOOTER_OFFSET_X_METERS, 0.0).rotateBy(robotPose.getRotation()));
+  public static Rotation2d getAimHeading(Translation2d launchTranslation, Translation2d target) {
+    return target.minus(launchTranslation).getAngle().plus(Rotation2d.kPi);
+  }
 
-    Translation2d lookaheadLaunchTranslation = launchTranslation;
-    double lookaheadDistanceMeters = HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
+  /** Signed heading error (rad) between the robot's current heading and the aim heading. */
+  public static double getAimErrorRad(Pose2d robotPose) {
+    Rotation2d aim = getAimHeading(getLaunchTranslation(robotPose), getTarget(robotPose));
+    return aim.minus(robotPose.getRotation()).getRadians();
+  }
+
+  public static boolean isAimed(Pose2d robotPose) {
+    return Math.abs(getAimErrorRad(robotPose)) <= AIM_TOLERANCE_RAD;
+  }
+
+  /**
+   * Map-based launch model: apply lookahead from chassis velocity (iterating on time of flight),
+   * then interpolate RPM, hood angle, and TOF by distance.
+   */
+  public static ShotSolution calculateShot(Pose2d robotPose, ChassisSpeeds fieldRelativeSpeeds) {
+    Translation2d launchTranslation = getLaunchTranslation(robotPose);
+    Translation2d target = getTarget(robotPose);
+
+    Translation2d lookaheadLaunch = launchTranslation;
+    double distance = target.getDistance(lookaheadLaunch);
     for (int i = 0; i < 8; i++) {
-      double tofSeconds = timeOfFlightMap.get(lookaheadDistanceMeters);
-      Translation2d velocityOffset =
-          new Translation2d(
-              fieldRelativeSpeeds.vxMetersPerSecond * tofSeconds,
-              fieldRelativeSpeeds.vyMetersPerSecond * tofSeconds);
-      lookaheadLaunchTranslation = launchTranslation.plus(velocityOffset);
-      lookaheadDistanceMeters = HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
-    }
-    double lookaheadFrontEdgeDistanceMeters =
-        HUB_TRANSLATION.getDistance(lookaheadLaunchTranslation);
-    double rpmLookupDistanceMeters = lookaheadFrontEdgeDistanceMeters;
-
-    if (rpmLookupDistanceMeters < minDistanceMeters
-        || rpmLookupDistanceMeters > maxDistanceMeters) {
-      return Optional.empty();
+      double tof = shotTable.get(clampDistance(distance)).tofSeconds();
+      lookaheadLaunch =
+          launchTranslation.plus(
+              new Translation2d(
+                  fieldRelativeSpeeds.vxMetersPerSecond * tof,
+                  fieldRelativeSpeeds.vyMetersPerSecond * tof));
+      distance = target.getDistance(lookaheadLaunch);
     }
 
-    double speedMetersPerSecond =
-        MathUtil.clamp(
-            exitVelocityMap.get(rpmLookupDistanceMeters),
-            MIN_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond),
-            MAX_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond));
-    Angle launchAngle = fixedLaunchAngle;
+    boolean inRange = distance >= minDistanceMeters && distance <= maxDistanceMeters;
+    ShotParameters params = shotTable.get(clampDistance(distance));
 
-    return Optional.of(
-        new ShotSolution(
-            MetersPerSecond.of(speedMetersPerSecond),
-            launchAngle,
-            Seconds.of(timeOfFlightMap.get(rpmLookupDistanceMeters)),
-            lookaheadDistanceMeters,
-            lookaheadFrontEdgeDistanceMeters,
-            rpmLookupDistanceMeters));
+    AngularVelocity flywheel = RPM.of(params.rpm());
+    LinearVelocity exitVelocity =
+        MetersPerSecond.of(
+            MathUtil.clamp(
+                flywheelVelocityToExitVelocity(flywheel).in(MetersPerSecond),
+                MIN_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond),
+                MAX_DYNAMIC_EXIT_VELOCITY.in(MetersPerSecond)));
+
+    return new ShotSolution(
+        target,
+        exitVelocity,
+        flywheel,
+        Degrees.of(params.angleDeg()),
+        Seconds.of(params.tofSeconds()),
+        distance,
+        inRange);
+  }
+
+  private static double clampDistance(double distance) {
+    return MathUtil.clamp(distance, minDistanceMeters, maxDistanceMeters);
   }
 
   public static AngularVelocity exitVelocityToFlywheelVelocity(LinearVelocity exitVelocity) {
@@ -125,11 +163,5 @@ public final class ShooterMath {
         Math.max(
             0.0, flywheelVelocity.in(RadiansPerSecond) * EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC);
     return MetersPerSecond.of(exitMetersPerSecond);
-  }
-
-  public static double rpmToVelocity(double flywheelRpm) {
-    return flywheelVelocityToExitVelocity(
-            RadiansPerSecond.of(Units.rotationsPerMinuteToRadiansPerSecond(flywheelRpm)))
-        .in(MetersPerSecond);
   }
 }

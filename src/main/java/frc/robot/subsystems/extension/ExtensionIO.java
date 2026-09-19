@@ -23,7 +23,6 @@ public interface ExtensionIO {
     public Current current = Amps.zero();
     public Temperature temp = Celsius.zero();
     public boolean connected = false;
-    public boolean forwardLimitPressed = false;
     public boolean reverseLimitPressed = false;
   }
 }

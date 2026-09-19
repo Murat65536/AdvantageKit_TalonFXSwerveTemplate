@@ -32,6 +32,16 @@ public final class DriveConstants {
               Math.hypot(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
               Math.hypot(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)));
 
+  // Bump slowdown: scale teleop speed while the robot footprint is driving into a bump
+  public static final double BUMP_SLOWDOWN_SCALE = 0.3;
+  public static final double BUMP_APPROACH_SPEED_THRESHOLD_MPS = 0.5;
+
+  // Obstacle heading snap (rad): trench lanes want the robot square to the field; bumps want 45 deg
+  public static final double TRENCH_SNAP_STEP_RAD = Math.PI;
+  public static final double TRENCH_SNAP_OFFSET_RAD = 0.0;
+  public static final double BUMP_SNAP_STEP_RAD = Math.PI / 2.0;
+  public static final double BUMP_SNAP_OFFSET_RAD = Math.PI / 4.0;
+
   // Robot model and Choreo controller constants
   public static final double ROBOT_MASS_KG = 60.1;
   public static final double WHEEL_COF = 1.0;

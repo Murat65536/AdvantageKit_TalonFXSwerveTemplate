@@ -4,6 +4,7 @@ import static edu.wpi.first.units.Units.*;
 import static frc.robot.subsystems.intake.IntakeConstants.*;
 
 import com.revrobotics.PersistMode;
+import com.revrobotics.REVLibError;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
 import com.revrobotics.spark.SparkFlex;
@@ -39,7 +40,7 @@ public class IntakeIOReal implements IntakeIO {
     inputs.rollerCurrentOut = Amps.of(rollerMotor.getOutputCurrent());
     inputs.rollerTemp = Celsius.of(rollerMotor.getMotorTemperature());
 
-    boolean connected = !rollerMotor.hasActiveFault();
+    boolean connected = rollerMotor.getLastError() == REVLibError.kOk;
     inputs.rollerConnected = connected;
     rollerDisconnected.set(!connected);
   }

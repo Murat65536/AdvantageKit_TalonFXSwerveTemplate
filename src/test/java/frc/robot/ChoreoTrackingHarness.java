@@ -7,6 +7,9 @@
 
 package frc.robot;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import choreo.Choreo;
 import choreo.trajectory.SwerveSample;
 import choreo.trajectory.Trajectory;
@@ -24,6 +27,7 @@ import frc.robot.subsystems.drive.GyroIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFXSim;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.concurrent.locks.LockSupport;
 import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.drivesims.SwerveDriveSimulation;
 import org.ironmaple.simulation.seasonspecific.rebuilt2026.Arena2026Rebuilt;
@@ -31,8 +35,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Headless harness that drives the real {@link Drive} + maple-sim physics through a Choreo
- * trajectory and records the X/Y tracking error each 20 ms tick to a CSV in {@code build/}. Not a
- * pass/fail unit test — it exists to generate tracking data that can be inspected directly.
+ * trajectory, verifies tracking stays within tolerance, and records each 20 ms tick to a CSV in
+ * {@code build/} for diagnosis when an assertion fails.
  *
  * <p>Run with: {@code ./gradlew cleanTest test --tests frc.robot.ChoreoTrackingHarness}
  */
@@ -40,14 +44,16 @@ public class ChoreoTrackingHarness {
   private static final String TRAJECTORY = "Left_Trench";
   private static final double DT = 0.02;
   private static final double HOLD_SECONDS = 1.5; // time to observe end-of-path settling
+  private static final double MAX_TRACKING_ERROR_METERS = 0.40;
+  private static final double MAX_HOLD_ERROR_METERS = 0.25;
+  private static final double MAX_FINAL_ERROR_METERS = 0.20;
+  private static final double MAX_HEADING_ERROR_DEGREES = 15.0;
 
   @Test
   public void measureTrackingError() throws Exception {
     HAL.initialize(500, 0);
-    // NOTE: SimHooks timing control intentionally NOT used here — pausing the clock and advancing
-    // it
-    // in one 20 ms jump per loop appears to destabilize the Phoenix steer closed loop (which sub-
-    // steps inside maple-sim). Letting the clock run continuously is the faithful behavior.
+    // Phoenix simulation uses the continuously running HAL clock. Pace this test in real time so
+    // its status signals and control loops advance at the same rate as MapleSim's 20 ms physics.
     DriverStationSim.setEnabled(true);
     DriverStationSim.setAutonomous(true);
     DriverStationSim.setDsAttached(true);
@@ -87,7 +93,14 @@ public class ChoreoTrackingHarness {
     double finalErr = 0.0;
     double maxHeadErrDeg = 0.0;
 
+    long nextTickNanos = System.nanoTime();
     for (double t = 0.0; t <= total + HOLD_SECONDS + 1e-9; t += DT) {
+      long nanosUntilTick;
+      while ((nanosUntilTick = nextTickNanos - System.nanoTime()) > 0) {
+        LockSupport.parkNanos(nanosUntilTick);
+      }
+      nextTickNanos += (long) (DT * 1e9);
+
       // Match the robot loop order: subsystem periodic (odometry) -> controller -> physics.
       Unmanaged.feedEnable(100);
       drive.periodic();
@@ -154,5 +167,27 @@ public class ChoreoTrackingHarness {
             csvFile.getAbsolutePath());
     Files.writeString(new File(outDir, "choreo_tracking_summary.txt").toPath(), summary);
     System.out.print(summary);
+
+    double recordedMaxErr = maxErr;
+    double recordedMaxErrAfterEnd = maxErrAfterEnd;
+    double recordedFinalErr = finalErr;
+    double recordedMaxHeadErrDeg = maxHeadErrDeg;
+    assertAll(
+        () ->
+            assertTrue(
+                recordedMaxErr <= MAX_TRACKING_ERROR_METERS,
+                String.format("Maximum tracking error was %.3f m", recordedMaxErr)),
+        () ->
+            assertTrue(
+                recordedMaxErrAfterEnd <= MAX_HOLD_ERROR_METERS,
+                String.format("Maximum endpoint hold error was %.3f m", recordedMaxErrAfterEnd)),
+        () ->
+            assertTrue(
+                recordedFinalErr <= MAX_FINAL_ERROR_METERS,
+                String.format("Final tracking error was %.3f m", recordedFinalErr)),
+        () ->
+            assertTrue(
+                recordedMaxHeadErrDeg <= MAX_HEADING_ERROR_DEGREES,
+                String.format("Maximum heading error was %.1f degrees", recordedMaxHeadErrDeg)));
   }
 }

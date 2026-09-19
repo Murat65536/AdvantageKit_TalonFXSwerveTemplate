@@ -4,93 +4,103 @@ import static edu.wpi.first.units.Units.*;
 import static frc.robot.subsystems.shooter.ShooterConstants.*;
 
 import com.revrobotics.PersistMode;
+import com.revrobotics.REVLibError;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
-import com.revrobotics.spark.SparkFlex;
+import com.revrobotics.spark.SparkBase.ControlType;
+import com.revrobotics.spark.SparkClosedLoopController;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import com.revrobotics.spark.config.SparkFlexConfig;
-import edu.wpi.first.math.MathUtil;
+import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 
-/** Real hardware IO for the shooter flywheels using Neo Vortex motors on Spark Flex controllers. */
+/**
+ * Real hardware IO for the shooter: four Neo Vortex motors on Spark MAX controllers. Left-top is
+ * the leader; left-bottom follows it, and both right motors follow inverted. Velocity closed-loop
+ * runs onboard the leader Spark.
+ */
 public class ShooterIOReal implements ShooterIO {
-  private final SparkFlex topLeftMotor = new SparkFlex(TOP_LEFT_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkFlex topRightMotor =
-      new SparkFlex(TOP_RIGHT_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkFlex bottomLeftMotor =
-      new SparkFlex(BOTTOM_LEFT_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkFlex bottomRightMotor =
-      new SparkFlex(BOTTOM_RIGHT_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final RelativeEncoder encoder = topLeftMotor.getEncoder();
+  private final SparkMax leftTop = new SparkMax(LEFT_TOP_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkMax leftBottom = new SparkMax(LEFT_BOTTOM_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkMax rightTop = new SparkMax(RIGHT_TOP_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkMax rightBottom =
+      new SparkMax(RIGHT_BOTTOM_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkMax[] allMotors = {leftTop, leftBottom, rightTop, rightBottom};
+  private final RelativeEncoder encoder = leftTop.getEncoder();
+  private final SparkClosedLoopController controller = leftTop.getClosedLoopController();
 
   private final Alert shooterDisconnected =
-      new Alert("Shooter Spark Flex disconnected!", AlertType.kError);
-  private Voltage appliedVoltage = Volts.zero();
+      new Alert("Shooter Spark MAX disconnected!", AlertType.kError);
   private AngularVelocity velocitySetpoint = RPM.zero();
 
   public ShooterIOReal() {
-    SparkFlexConfig topLeftMotorConfig = new SparkFlexConfig();
-    topLeftMotorConfig.idleMode(IdleMode.kCoast).smartCurrentLimit((int) CURRENT_LIMIT.in(Amps));
-    topLeftMotor.configure(
-        topLeftMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    SparkMaxConfig baseConfig = new SparkMaxConfig();
+    baseConfig
+        .idleMode(IdleMode.kCoast)
+        .inverted(LEADER_INVERTED)
+        .smartCurrentLimit((int) CURRENT_LIMIT.in(Amps));
+    baseConfig
+        .closedLoop
+        .pid(VELOCITY_KP, VELOCITY_KI, VELOCITY_KD)
+        .feedForward
+        .sva(VELOCITY_KS, VELOCITY_KV, VELOCITY_KA);
+    baseConfig.encoder.quadratureAverageDepth(5).quadratureMeasurementPeriod(10);
+    leftTop.configure(baseConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    SparkFlexConfig topRightMotorConfig = new SparkFlexConfig();
-    topRightMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor).inverted(true);
-    topRightMotor.configure(
-        topRightMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    SparkMaxConfig leftFollowerConfig = new SparkMaxConfig();
+    leftFollowerConfig.apply(baseConfig).follow(leftTop, false);
+    leftBottom.configure(
+        leftFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    SparkFlexConfig bottomLeftMotorConfig = new SparkFlexConfig();
-    bottomLeftMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor);
-    bottomLeftMotor.configure(
-        bottomLeftMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
-
-    SparkFlexConfig bottomRightMotorConfig = new SparkFlexConfig();
-    bottomRightMotorConfig.apply(topLeftMotorConfig).follow(topLeftMotor).inverted(true).flatten();
-    bottomRightMotor.configure(
-        bottomRightMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    SparkMaxConfig rightFollowerConfig = new SparkMaxConfig();
+    rightFollowerConfig.apply(baseConfig).follow(leftTop, true);
+    rightTop.configure(
+        rightFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    rightBottom.configure(
+        rightFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
   }
 
   @Override
   public void updateInputs(ShooterIOInputs inputs) {
-    double targetRpm = velocitySetpoint.in(RPM);
-    double measuredRpm = encoder.getVelocity();
-    double ffVolts = targetRpm * SHOOTER_VELOCITY_FF_VOLTS_PER_RPM;
-    double feedbackVolts = (targetRpm - measuredRpm) * SHOOTER_VELOCITY_KP_VOLTS_PER_RPM;
-    appliedVoltage = Volts.of(MathUtil.clamp(ffVolts + feedbackVolts, -12.0, 12.0));
-    topLeftMotor.setVoltage(appliedVoltage.in(Volts));
+    double totalCurrent = 0.0;
+    double maxTemp = 0.0;
+    boolean allConnected = true;
+    for (SparkMax motor : allMotors) {
+      totalCurrent += motor.getOutputCurrent();
+      maxTemp = Math.max(maxTemp, motor.getMotorTemperature());
+      allConnected &= motor.getLastError() == REVLibError.kOk;
+    }
 
+    inputs.position = Rotations.of(encoder.getPosition());
     inputs.velocity = RPM.of(encoder.getVelocity());
-    inputs.voltageOut = Volts.of(topLeftMotor.getAppliedOutput() * topLeftMotor.getBusVoltage());
-    inputs.currentOut = Amps.of(topLeftMotor.getOutputCurrent() + topRightMotor.getOutputCurrent());
-    inputs.temp =
-        Celsius.of(
-            Math.max(
-                Math.max(topLeftMotor.getMotorTemperature(), topRightMotor.getMotorTemperature()),
-                Math.max(
-                    bottomLeftMotor.getMotorTemperature(),
-                    bottomRightMotor.getMotorTemperature())));
-    inputs.connected =
-        !topLeftMotor.hasActiveFault()
-            && !topRightMotor.hasActiveFault()
-            && !bottomLeftMotor.hasActiveFault()
-            && !bottomRightMotor.hasActiveFault();
+    inputs.velocitySetpoint = velocitySetpoint;
+    inputs.voltageOut = Volts.of(leftTop.getAppliedOutput() * leftTop.getBusVoltage());
+    inputs.currentOut = Amps.of(totalCurrent);
+    inputs.temp = Celsius.of(maxTemp);
+    inputs.connected = allConnected;
 
     shooterDisconnected.set(!inputs.connected);
   }
 
   @Override
   public void setShooterVoltage(Voltage voltage) {
-    double targetRpm =
-        MathUtil.clamp(voltage.in(Volts), -12.0, 12.0) / 12.0 * MAX_FLYWHEEL_VELOCITY.in(RPM);
-    velocitySetpoint = RPM.of(targetRpm);
+    velocitySetpoint = RPM.zero();
+    leftTop.setVoltage(voltage.in(Volts));
   }
 
   @Override
   public void setShooterVelocity(AngularVelocity velocity) {
     velocitySetpoint = velocity;
+    controller.setSetpoint(velocity.in(RPM), ControlType.kVelocity);
+  }
+
+  @Override
+  public void stop() {
+    velocitySetpoint = RPM.zero();
+    leftTop.stopMotor();
   }
 }

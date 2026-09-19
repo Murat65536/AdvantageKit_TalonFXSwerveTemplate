@@ -33,6 +33,7 @@ import org.littletonrobotics.junction.wpilog.WPILOGWriter;
  */
 public class Robot extends LoggedRobot {
   private Command autonomousCommand;
+  private Command hubWarningCommand;
   private RobotContainer robotContainer;
 
   public Robot() {
@@ -140,6 +141,18 @@ public class Robot extends LoggedRobot {
     // this line or comment it out.
     if (autonomousCommand != null) {
       autonomousCommand.cancel();
+    }
+
+    // Track hub shifts for the whole teleop period and warn the drivers before activation.
+    hubWarningCommand = robotContainer.getHubActivationWarningCommand();
+    CommandScheduler.getInstance().schedule(hubWarningCommand);
+  }
+
+  @Override
+  public void teleopExit() {
+    if (hubWarningCommand != null) {
+      hubWarningCommand.cancel();
+      hubWarningCommand = null;
     }
   }
 

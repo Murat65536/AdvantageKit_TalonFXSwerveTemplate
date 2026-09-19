@@ -7,14 +7,16 @@
 
 package frc.robot;
 
-import static edu.wpi.first.units.Units.Degrees;
-import static frc.robot.subsystems.shooter.ShooterConstants.HUB_TRANSLATION;
+import static frc.robot.subsystems.hood.HoodConstants.TRIM_STEP;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.GenericHID;
+import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -22,6 +24,8 @@ import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.auton.Autos;
 import frc.robot.commands.DriveCommands;
+import frc.robot.commands.HubActivationWarningCommand;
+import frc.robot.commands.ShootCommands;
 import frc.robot.generated.TunerConstants;
 import frc.robot.generated.choreo.ChoreoTraj;
 import frc.robot.subsystems.drive.Drive;
@@ -36,14 +40,23 @@ import frc.robot.subsystems.extension.Extension;
 import frc.robot.subsystems.extension.ExtensionIO;
 import frc.robot.subsystems.extension.ExtensionIOReal;
 import frc.robot.subsystems.extension.ExtensionIOSim;
+import frc.robot.subsystems.feeder.Feeder;
+import frc.robot.subsystems.feeder.FeederConstants;
 import frc.robot.subsystems.hood.Hood;
 import frc.robot.subsystems.hood.HoodIO;
 import frc.robot.subsystems.hood.HoodIOReal;
 import frc.robot.subsystems.hood.HoodIOSim;
+import frc.robot.subsystems.indexer.Indexer;
+import frc.robot.subsystems.indexer.IndexerConstants;
 import frc.robot.subsystems.intake.Intake;
 import frc.robot.subsystems.intake.IntakeIO;
 import frc.robot.subsystems.intake.IntakeIOReal;
 import frc.robot.subsystems.intake.IntakeIOSim;
+import frc.robot.subsystems.kicker.Kicker;
+import frc.robot.subsystems.kicker.KickerConstants;
+import frc.robot.subsystems.rollers.RollerIO;
+import frc.robot.subsystems.rollers.RollerIOSim;
+import frc.robot.subsystems.rollers.RollerIOSparkFlex;
 import frc.robot.subsystems.shooter.Shooter;
 import frc.robot.subsystems.shooter.ShooterIO;
 import frc.robot.subsystems.shooter.ShooterIOReal;
@@ -63,6 +76,10 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
  * subsystems, commands, and button mappings) should be declared here.
  */
 public class RobotContainer {
+  private static final int DRIVER_CONTROLLER_PORT = 0;
+  private static final int OPERATOR_CONTROLLER_PORT = 1;
+  private static final double AIMING_RUMBLE = 0.8;
+
   // Subsystems
   private final Drive drive;
   private final Vision vision;
@@ -70,13 +87,18 @@ public class RobotContainer {
   private final Extension extension;
   private final Hood hood;
   private final Shooter shooter;
+  private final Kicker kicker;
+  private final Feeder feeder;
+  private final Indexer indexer;
   private final Autos autos;
 
   // Simulation
   private SwerveDriveSimulation driveSimulation = null;
 
-  // Controller
-  private final CommandXboxController controller = new CommandXboxController(0);
+  // Controllers
+  private final CommandXboxController driver = new CommandXboxController(DRIVER_CONTROLLER_PORT);
+  private final CommandXboxController operator =
+      new CommandXboxController(OPERATOR_CONTROLLER_PORT);
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -101,6 +123,9 @@ public class RobotContainer {
         extension = new Extension(new ExtensionIOReal());
         hood = new Hood(new HoodIOReal());
         shooter = new Shooter(new ShooterIOReal());
+        kicker = new Kicker(new RollerIOSparkFlex(KickerConstants.CONFIG));
+        feeder = new Feeder(new RollerIOSparkFlex(FeederConstants.CONFIG));
+        indexer = new Indexer(new RollerIOSparkFlex(IndexerConstants.CONFIG));
         break;
 
       case SIM:
@@ -131,13 +156,21 @@ public class RobotContainer {
         intake = new Intake(new IntakeIOSim(driveSimulation));
         extension = new Extension(new ExtensionIOSim());
         hood = new Hood(new HoodIOSim());
+        kicker = new Kicker(new RollerIOSim(KickerConstants.CONFIG));
+        feeder = new Feeder(new RollerIOSim(FeederConstants.CONFIG));
+        indexer = new Indexer(new RollerIOSim(IndexerConstants.CONFIG));
+        // In sim a fuel leaves the robot only when the feed path is actually pushing it into the
+        // flywheel, mirroring the real robot.
         shooter =
             new Shooter(
                 new ShooterIOSim(
                     driveSimulation::getSimulatedDriveTrainPose,
                     drive::getFieldRelativeChassisSpeeds,
                     hood::getAngle,
-                    intake::consumeGamePiece));
+                    () ->
+                        feeder.isRunningForward()
+                            && kicker.isRunningForward()
+                            && intake.consumeGamePiece()));
         break;
 
       default:
@@ -155,10 +188,13 @@ public class RobotContainer {
         extension = new Extension(new ExtensionIO() {});
         hood = new Hood(new HoodIO() {});
         shooter = new Shooter(new ShooterIO() {});
+        kicker = new Kicker(new RollerIO() {});
+        feeder = new Feeder(new RollerIO() {});
+        indexer = new Indexer(new RollerIO() {});
         break;
     }
 
-    autos = new Autos(drive, intake, extension, hood, shooter);
+    autos = new Autos(drive, intake, extension, hood, shooter, kicker, feeder, indexer);
 
     // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto Choices");
@@ -183,9 +219,20 @@ public class RobotContainer {
         "Drive SysId (Dynamic Forward)", drive.sysIdDynamic(SysIdRoutine.Direction.kForward));
     autoChooser.addOption(
         "Drive SysId (Dynamic Reverse)", drive.sysIdDynamic(SysIdRoutine.Direction.kReverse));
+    autoChooser.addOption(
+        "Shooter SysId (Quasistatic Forward)",
+        shooter.sysIdQuasistatic(SysIdRoutine.Direction.kForward));
+    autoChooser.addOption(
+        "Shooter SysId (Quasistatic Reverse)",
+        shooter.sysIdQuasistatic(SysIdRoutine.Direction.kReverse));
+    autoChooser.addOption(
+        "Shooter SysId (Dynamic Forward)", shooter.sysIdDynamic(SysIdRoutine.Direction.kForward));
+    autoChooser.addOption(
+        "Shooter SysId (Dynamic Reverse)", shooter.sysIdDynamic(SysIdRoutine.Direction.kReverse));
 
     // Configure the button bindings
-    configureButtonBindings();
+    configureDriverBindings();
+    configureOperatorBindings();
   }
 
   /**
@@ -194,46 +241,89 @@ public class RobotContainer {
    * edu.wpi.first.wpilibj.Joystick} or {@link XboxController}), and then passing it to a {@link
    * edu.wpi.first.wpilibj2.command.button.JoystickButton}.
    */
-  private void configureButtonBindings() {
-    // Default command, normal field-relative drive
+  private void configureDriverBindings() {
+    // Default command: field-relative drive that slows down while driving into a bump
     drive.setDefaultCommand(
-        DriveCommands.joystickDrive(
-            drive,
-            () -> -controller.getLeftY(),
-            () -> -controller.getLeftX(),
-            () -> -controller.getRightX()));
-    // Joystick drive command
+        DriveCommands.bumpAwareJoystickDrive(
+            drive, () -> -driver.getLeftY(), () -> -driver.getLeftX(), () -> -driver.getRightX()));
+
+    // Re-seed field-centric heading: robot's front faces away from the driver station
+    driver
+        .start()
+        .onTrue(
+            Commands.runOnce(
+                    () ->
+                        drive.setPose(
+                            new Pose2d(
+                                drive.getPose().getTranslation(),
+                                DriverStation.getAlliance().orElse(Alliance.Blue) == Alliance.Red
+                                    ? Rotation2d.kPi
+                                    : Rotation2d.kZero)))
+                .ignoringDisable(true));
 
     // Switch to X pattern when X button is pressed
-    controller.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
+    driver.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
 
-    // While B is held, extend and only run intake once extension is fully extended.
-    controller
+    // While B is held, extend and only run intake once extension is fully extended
+    driver
         .b()
         .whileTrue(
             Commands.parallel(extension.extend(), intake.intake(extension::isFullyExtended)));
 
-    controller.leftBumper().whileTrue(extension.retract());
-    controller.rightBumper().whileTrue(extension.extend());
+    // Obstacle align: snap heading for trench / bump while held
+    driver
+        .leftBumper()
+        .whileTrue(
+            DriveCommands.joystickDriveObstacleAlign(
+                drive, () -> -driver.getLeftY(), () -> -driver.getLeftX()));
 
-    controller.povUp().whileTrue(Commands.run(() -> hood.adjustTargetAngle(Degrees.of(0.2)), hood));
-    controller
-        .povDown()
-        .whileTrue(Commands.run(() -> hood.adjustTargetAngle(Degrees.of(-0.2)), hood));
-
-    controller
+    // Aim the shooter at the target while held; rumble both controllers while aiming
+    driver
         .leftTrigger()
         .whileTrue(
-            DriveCommands.joystickDriveFacingPoint(
-                drive,
-                () -> controller.getLeftY(),
-                () -> controller.getLeftX(),
-                () -> HUB_TRANSLATION));
+            DriveCommands.joystickDriveAimAtTarget(
+                    drive, () -> -driver.getLeftY(), () -> -driver.getLeftX())
+                .alongWith(
+                    Commands.startEnd(() -> setRumble(AIMING_RUMBLE), () -> setRumble(0.0))));
 
-    // Dynamically set shooter speed/angle model for hub shots while right trigger is held
-    controller
-        .rightTrigger()
-        .whileTrue(shooter.shootAtHub(drive::getPose, drive::getFieldRelativeChassisSpeeds, hood));
+    // Full shot: spin up, aim hood, and auto-feed once ready
+    driver.rightTrigger().whileTrue(shootAtTarget());
+  }
+
+  private void configureOperatorBindings() {
+    // Intake / outtake (roller only)
+    operator.rightBumper().whileTrue(intake.intake(extension::isFullyExtended));
+    operator.leftBumper().whileTrue(intake.outtake());
+
+    // Extension in / out
+    operator.a().onTrue(extension.extend());
+    operator.y().onTrue(extension.retract());
+
+    // Full shot from the operator side as well
+    operator.rightTrigger().whileTrue(shootAtTarget());
+
+    // Clear a jam by reversing the whole fuel path
+    operator.back().whileTrue(ShootCommands.unjam(shooter, kicker, feeder, indexer, intake));
+
+    // Hood trim (applied on top of the calculated launch angle); Start resets it
+    operator.povUp().onTrue(hood.adjustTrim(TRIM_STEP));
+    operator.povDown().onTrue(hood.adjustTrim(TRIM_STEP.unaryMinus()));
+    operator.start().onTrue(hood.resetTrim());
+  }
+
+  private Command shootAtTarget() {
+    return ShootCommands.shootAtTarget(
+        drive, shooter, hood, kicker, feeder, indexer, intake, extension);
+  }
+
+  private void setRumble(double value) {
+    driver.getHID().setRumble(RumbleType.kBothRumble, value);
+    operator.getHID().setRumble(RumbleType.kBothRumble, value);
+  }
+
+  /** Command that runs during teleop to warn drivers before the hub activates. */
+  public Command getHubActivationWarningCommand() {
+    return new HubActivationWarningCommand(this::setRumble);
   }
 
   /**

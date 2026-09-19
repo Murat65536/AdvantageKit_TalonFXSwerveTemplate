@@ -22,14 +22,18 @@ import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import frc.robot.FieldConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.DriveConstants;
+import frc.robot.subsystems.shooter.ShooterMath;
+import frc.robot.util.RectangleUtils;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+import org.littletonrobotics.junction.Logger;
 
 public class DriveCommands {
   private static final double DEADBAND = 0.1;
@@ -66,6 +70,48 @@ public class DriveCommands {
       DoubleSupplier xSupplier,
       DoubleSupplier ySupplier,
       DoubleSupplier omegaSupplier) {
+    return joystickDrive(drive, xSupplier, ySupplier, omegaSupplier, () -> 1.0);
+  }
+
+  /**
+   * Field relative joystick drive that automatically slows down while the robot is driving into a
+   * bump, so the drivers do not launch the robot off the far side.
+   */
+  public static Command bumpAwareJoystickDrive(
+      Drive drive,
+      DoubleSupplier xSupplier,
+      DoubleSupplier ySupplier,
+      DoubleSupplier omegaSupplier) {
+    return joystickDrive(
+        drive,
+        xSupplier,
+        ySupplier,
+        omegaSupplier,
+        () -> {
+          ChassisSpeeds speeds = drive.getFieldRelativeChassisSpeeds();
+          boolean drivingIntoBump =
+              RectangleUtils.drivingThroughRect(
+                  FieldConstants.BUMP_RECTANGLES,
+                  drive.getPose().getTranslation(),
+                  speeds.vxMetersPerSecond,
+                  speeds.vyMetersPerSecond,
+                  DriveConstants.DRIVE_BASE_RADIUS,
+                  DriveConstants.BUMP_APPROACH_SPEED_THRESHOLD_MPS);
+          Logger.recordOutput("Drive/DrivingIntoBump", drivingIntoBump);
+          return drivingIntoBump ? DriveConstants.BUMP_SLOWDOWN_SCALE : 1.0;
+        });
+  }
+
+  /**
+   * Field relative drive command using two joysticks, with an additional speed scale (0-1) applied
+   * to both linear and angular velocity.
+   */
+  public static Command joystickDrive(
+      Drive drive,
+      DoubleSupplier xSupplier,
+      DoubleSupplier ySupplier,
+      DoubleSupplier omegaSupplier,
+      DoubleSupplier speedScaleSupplier) {
     return Commands.run(
         () -> {
           // Get linear velocity
@@ -78,12 +124,14 @@ public class DriveCommands {
           // Square rotation value for more precise control
           omega = Math.copySign(omega * omega, omega);
 
+          double scale = MathUtil.clamp(speedScaleSupplier.getAsDouble(), 0.0, 1.0);
+
           // Convert to field relative speeds & send command
           ChassisSpeeds speeds =
               new ChassisSpeeds(
-                  linearVelocity.getX() * drive.getMaxLinearSpeedMetersPerSec(),
-                  linearVelocity.getY() * drive.getMaxLinearSpeedMetersPerSec(),
-                  omega * drive.getMaxAngularSpeedRadPerSec());
+                  linearVelocity.getX() * drive.getMaxLinearSpeedMetersPerSec() * scale,
+                  linearVelocity.getY() * drive.getMaxLinearSpeedMetersPerSec() * scale,
+                  omega * drive.getMaxAngularSpeedRadPerSec() * scale);
           boolean isFlipped =
               DriverStation.getAlliance().isPresent()
                   && DriverStation.getAlliance().get() == Alliance.Red;
@@ -151,7 +199,10 @@ public class DriveCommands {
         .beforeStarting(() -> angleController.reset(drive.getRotation().getRadians()));
   }
 
-  /** Field-relative drive while continuously aiming the robot at a field position. */
+  /**
+   * Field-relative drive while continuously pointing the back of the robot (the shooter) at a field
+   * position.
+   */
   public static Command joystickDriveFacingPoint(
       Drive drive,
       DoubleSupplier xSupplier,
@@ -166,7 +217,61 @@ public class DriveCommands {
                 .get()
                 .minus(drive.getPose().getTranslation())
                 .getAngle()
-                .plus(new Rotation2d(Math.PI)));
+                .plus(Rotation2d.kPi));
+  }
+
+  /**
+   * Field-relative drive while aiming the shooter at the current shot target (hub, or the corner
+   * pass point when past the hub), using the same geometry the shooter uses to judge "aimed".
+   */
+  public static Command joystickDriveAimAtTarget(
+      Drive drive, DoubleSupplier xSupplier, DoubleSupplier ySupplier) {
+    return joystickDriveAtAngle(
+        drive,
+        xSupplier,
+        ySupplier,
+        () -> {
+          Pose2d pose = drive.getPose();
+          return ShooterMath.getAimHeading(
+              ShooterMath.getLaunchTranslation(pose), ShooterMath.getTarget(pose));
+        });
+  }
+
+  /**
+   * Field-relative drive that snaps the heading to the nearest orientation that fits through the
+   * obstacle the robot is approaching: square to the field in a trench lane, 45 degrees over the
+   * bumps.
+   */
+  public static Command joystickDriveObstacleAlign(
+      Drive drive, DoubleSupplier xSupplier, DoubleSupplier ySupplier) {
+    return joystickDriveAtAngle(
+        drive,
+        xSupplier,
+        ySupplier,
+        () -> {
+          Pose2d pose = drive.getPose();
+          double heading = pose.getRotation().getRadians();
+          boolean inTrench = FieldConstants.isInTrenchLane(pose.getTranslation());
+          double snapped =
+              inTrench
+                  ? snapToNearest(
+                      heading,
+                      DriveConstants.TRENCH_SNAP_STEP_RAD,
+                      DriveConstants.TRENCH_SNAP_OFFSET_RAD)
+                  : snapToNearest(
+                      heading,
+                      DriveConstants.BUMP_SNAP_STEP_RAD,
+                      DriveConstants.BUMP_SNAP_OFFSET_RAD);
+          Logger.recordOutput("Drive/ObstacleAlignInTrench", inTrench);
+          Logger.recordOutput("Drive/ObstacleAlignTargetDeg", Math.toDegrees(snapped));
+          return new Rotation2d(snapped);
+        });
+  }
+
+  private static double snapToNearest(double headingRad, double stepRad, double offsetRad) {
+    double shifted = headingRad - offsetRad;
+    double snapped = Math.round(shifted / stepRad) * stepRad + offsetRad;
+    return MathUtil.angleModulus(snapped);
   }
 
   /**

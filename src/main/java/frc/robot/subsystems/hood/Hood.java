@@ -10,13 +10,18 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import org.littletonrobotics.junction.Logger;
 
 public class Hood extends SubsystemBase {
   private final HoodIO io;
   private final HoodIOInputsAutoLogged inputs = new HoodIOInputsAutoLogged();
+
   private Angle targetAngle = MIN_HOOD_ANGLE;
+  /** Operator trim added to every requested angle, so shots can be nudged live. */
+  private Angle trim = Degrees.zero();
 
   public Hood(HoodIO io) {
     this.io = io;
@@ -26,28 +31,52 @@ public class Hood extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("IO/Hood", inputs);
-    Pose3d componentPose = getComponentPose();
-    Logger.recordOutput("Subsystems/Hood/ComponentPose", componentPose);
+    Logger.recordOutput("Subsystems/Hood/ComponentPose", getComponentPose());
+    Logger.recordOutput("Subsystems/Hood/TargetAngleDeg", targetAngle.in(Degrees));
+    Logger.recordOutput("Subsystems/Hood/TrimDeg", trim.in(Degrees));
     Logger.recordOutput(
         "Subsystems/Hood/command",
         getCurrentCommand() == null ? "none" : getCurrentCommand().getName());
   }
 
+  /** Sets the hood target (trim is applied on top), clamped to the mechanical limits. */
   public void setTargetAngle(Angle angle) {
     targetAngle =
         Degrees.of(
             MathUtil.clamp(
-                angle.in(Degrees), MIN_HOOD_ANGLE.in(Degrees), MAX_HOOD_ANGLE.in(Degrees)));
+                angle.plus(trim).in(Degrees),
+                MIN_HOOD_ANGLE.in(Degrees),
+                MAX_HOOD_ANGLE.in(Degrees)));
     io.setTargetAngle(targetAngle);
   }
 
-  /** Adjusts hood target angle by a delta, clamped to min/max limits. */
-  public void adjustTargetAngle(Angle delta) {
-    setTargetAngle(targetAngle.plus(delta));
+  /** Adjusts the persistent trim offset. Does not require the subsystem. */
+  public Command adjustTrim(Angle delta) {
+    return Commands.runOnce(
+            () ->
+                trim =
+                    Degrees.of(
+                        MathUtil.clamp(
+                            trim.plus(delta).in(Degrees),
+                            -MAX_TRIM.in(Degrees),
+                            MAX_TRIM.in(Degrees))))
+        .ignoringDisable(true)
+        .withName("HoodAdjustTrim");
+  }
+
+  /** Clears the trim offset. Does not require the subsystem. */
+  public Command resetTrim() {
+    return Commands.runOnce(() -> trim = Degrees.zero())
+        .ignoringDisable(true)
+        .withName("HoodResetTrim");
   }
 
   public Angle getAngle() {
     return inputs.angle;
+  }
+
+  public Angle getTargetAngle() {
+    return targetAngle;
   }
 
   public boolean atSetpoint() {

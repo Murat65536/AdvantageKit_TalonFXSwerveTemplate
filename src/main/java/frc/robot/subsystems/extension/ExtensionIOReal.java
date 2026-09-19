@@ -4,50 +4,54 @@ import static edu.wpi.first.units.Units.*;
 import static frc.robot.subsystems.extension.ExtensionConstants.*;
 
 import com.revrobotics.PersistMode;
+import com.revrobotics.REVLibError;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
-import com.revrobotics.spark.SparkFlex;
+import com.revrobotics.spark.FeedbackSensor;
 import com.revrobotics.spark.SparkLimitSwitch;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.LimitSwitchConfig.Behavior;
 import com.revrobotics.spark.config.LimitSwitchConfig.Type;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import com.revrobotics.spark.config.SparkFlexConfig;
+import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 
-/** Real hardware IO for extension driven by one NEO 1.1 on Spark Flex with limit switches. */
+/**
+ * Real hardware IO for the hopper extension: one NEO on a Spark MAX with a reverse limit switch.
+ */
 public class ExtensionIOReal implements ExtensionIO {
-  private final SparkFlex motor = new SparkFlex(MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkMax motor = new SparkMax(MOTOR_CAN_ID, MotorType.kBrushless);
   private final RelativeEncoder encoder = motor.getEncoder();
-  private final SparkLimitSwitch forwardLimitSwitch = motor.getForwardLimitSwitch();
   private final SparkLimitSwitch reverseLimitSwitch = motor.getReverseLimitSwitch();
 
   private final Alert motorDisconnected =
-      new Alert("Extension Spark Flex disconnected!", AlertType.kError);
+      new Alert("Extension Spark MAX disconnected!", AlertType.kError);
 
   private Voltage requestedVoltage = Volts.zero();
 
   public ExtensionIOReal() {
-    SparkFlexConfig config = new SparkFlexConfig();
+    SparkMaxConfig config = new SparkMaxConfig();
     config.idleMode(IdleMode.kBrake).smartCurrentLimit((int) MOTOR_CURRENT_LIMIT.in(Amps));
     config
         .limitSwitch
-        .forwardLimitSwitchType(Type.kNormallyOpen)
-        .forwardLimitSwitchTriggerBehavior(Behavior.kStopMovingMotorAndSetPosition)
+        .reverseLimitSwitchEnabled(true)
         .reverseLimitSwitchType(Type.kNormallyOpen)
-        .reverseLimitSwitchTriggerBehavior(Behavior.kStopMovingMotorAndSetPosition);
+        .reverseLimitSwitchTriggerBehavior(Behavior.kStopMovingMotorAndSetPosition)
+        .reverseLimitSwitchPosition(MIN_POSITION_ROT)
+        .limitSwitchPositionSensor(FeedbackSensor.kPrimaryEncoder);
     motor.configure(config, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
   }
 
   @Override
   public void updateInputs(ExtensionIOInputs inputs) {
-    boolean forwardPressed = forwardLimitSwitch.isPressed();
     boolean reversePressed = reverseLimitSwitch.isPressed();
 
+    // The Spark stops the motor at the switch on its own; also refuse to command into it.
     double safeVolts = requestedVoltage.in(Volts);
-    if ((safeVolts > 0.0 && forwardPressed) || (safeVolts < 0.0 && reversePressed)) {
+    if (safeVolts < 0.0 && reversePressed) {
       safeVolts = 0.0;
     }
     motor.setVoltage(safeVolts);
@@ -57,8 +61,7 @@ public class ExtensionIOReal implements ExtensionIO {
     inputs.appliedVoltage = Volts.of(motor.getAppliedOutput() * motor.getBusVoltage());
     inputs.current = Amps.of(motor.getOutputCurrent());
     inputs.temp = Celsius.of(motor.getMotorTemperature());
-    inputs.connected = !motor.hasActiveFault();
-    inputs.forwardLimitPressed = forwardPressed;
+    inputs.connected = motor.getLastError() == REVLibError.kOk;
     inputs.reverseLimitPressed = reversePressed;
 
     motorDisconnected.set(!inputs.connected);

@@ -7,7 +7,7 @@ import edu.wpi.first.units.measure.Voltage;
 
 public class IntakeConstants {
   // Motor config
-  public static final int ROLLER_MOTOR_ID = 42;
+  public static final int ROLLER_MOTOR_ID = 17;
   public static final boolean ROLLER_INVERTED = false;
   public static final Current ROLLER_CURRENT_LIMIT = Amps.of(30);
 

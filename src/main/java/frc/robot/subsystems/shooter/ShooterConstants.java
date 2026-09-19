@@ -2,8 +2,6 @@ package frc.robot.subsystems.shooter;
 
 import static edu.wpi.first.units.Units.*;
 
-import com.pathplanner.lib.util.FlippingUtil;
-import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.util.Units;
 import edu.wpi.first.units.measure.AngularVelocity;
@@ -14,12 +12,21 @@ import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
 
 public class ShooterConstants {
-  // Motor config
-  public static final int TOP_LEFT_MOTOR_CAN_ID = 43;
-  public static final int TOP_RIGHT_MOTOR_CAN_ID = 45;
-  public static final int BOTTOM_LEFT_MOTOR_CAN_ID = 44;
-  public static final int BOTTOM_RIGHT_MOTOR_CAN_ID = 46;
-  public static final Current CURRENT_LIMIT = Amps.of(40);
+  // Motor config: four Neo Vortex on Spark MAX. Left-top leads.
+  public static final int LEFT_TOP_MOTOR_CAN_ID = 5;
+  public static final int LEFT_BOTTOM_MOTOR_CAN_ID = 3;
+  public static final int RIGHT_TOP_MOTOR_CAN_ID = 16;
+  public static final int RIGHT_BOTTOM_MOTOR_CAN_ID = 15;
+  public static final boolean LEADER_INVERTED = true;
+  public static final Current CURRENT_LIMIT = Amps.of(70);
+
+  // Onboard velocity loop (duty cycle per RPM)
+  public static final double VELOCITY_KP = 0.0002;
+  public static final double VELOCITY_KI = 0.0;
+  public static final double VELOCITY_KD = 0.0;
+  public static final double VELOCITY_KS = 0.0;
+  public static final double VELOCITY_KV = 0.00187;
+  public static final double VELOCITY_KA = 0.0;
 
   // Voltages
   public static final Voltage SHOOT_VOLTAGE = Volts.of(12);
@@ -28,13 +35,6 @@ public class ShooterConstants {
   // Sim constants
   public static final double FLYWHEEL_GEAR_RATIO = 1.0; // direct drive
   public static final double FLYWHEEL_MOI = 0.004; // kg*m^2
-
-  public static final double HUB_EDGE_DISTANCE_FROM_DRIVER_STATION = Units.inchesToMeters(158.6);
-  public static final double HUB_LENGTH = Units.inchesToMeters(47.0);
-  public static final Translation2d HUB_TRANSLATION =
-      new Translation2d(
-          HUB_EDGE_DISTANCE_FROM_DRIVER_STATION + HUB_LENGTH / 2.0, FlippingUtil.fieldSizeY / 2.0);
-  public static final Distance HUB_HEIGHT = Inches.of(104.0);
 
   // Projectile constants
   public static final Translation3d BALL_EXIT_TRANSLATION =
@@ -50,6 +50,11 @@ public class ShooterConstants {
           SHOOTER_READY_VELOCITY.in(RadiansPerSecond) * EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC);
   public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.03);
 
+  /**
+   * Robot-relative X offset of the shooter barrel used for range calculation. NOTE: the previous
+   * robot code used -5.202363 in (barrel behind robot center, matching a rear-facing shooter); the
+   * sign here is kept as tuned with the current RPM map. Verify on the robot.
+   */
   public static final double SHOOTER_OFFSET_X_METERS = Units.inchesToMeters(5.202363);
 
   // Dynamic shot limits and conversion
@@ -57,10 +62,18 @@ public class ShooterConstants {
   public static final LinearVelocity MAX_DYNAMIC_EXIT_VELOCITY = MetersPerSecond.of(22.0);
   public static final AngularVelocity MAX_FLYWHEEL_VELOCITY = RPM.of(6784.0);
 
-  // Velocity control tuning
-  public static final double SHOOTER_VELOCITY_KP_VOLTS_PER_RPM = 0.0025;
-  public static final double SHOOTER_VELOCITY_FF_VOLTS_PER_RPM =
-      12.0 / MAX_FLYWHEEL_VELOCITY.in(RPM);
-  public static final double SHOOTER_SIM_VELOCITY_KP_VOLTS_PER_RAD_PER_SEC = 0.03;
+  // Ready / feed gating
   public static final AngularVelocity SHOOTER_AT_SPEED_TOLERANCE = RPM.of(150.0);
+  /** Heading tolerance for the drive to be considered aimed at the target. */
+  public static final double AIM_TOLERANCE_RAD = Math.toRadians(5.0);
+  /**
+   * Once feeding has started, the ready condition must be false for this long before feeding stops.
+   * Prevents the flywheel speed dip from each shot from chattering the feed path.
+   */
+  public static final Time FEED_STOP_DEBOUNCE = Seconds.of(0.25);
+  /** How long the intake roller runs at the start of each feed to push loose fuel inward. */
+  public static final Time FEED_INTAKE_PULSE = Seconds.of(0.5);
+
+  // Sim-only velocity loop
+  public static final double SHOOTER_SIM_VELOCITY_KP_VOLTS_PER_RAD_PER_SEC = 0.03;
 }

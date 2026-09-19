@@ -66,6 +66,7 @@ public class ShooterIOSim implements ShooterIO {
     shooterSim.update(0.02);
 
     inputs.velocity = RadiansPerSecond.of(shooterSim.getAngularVelocityRadPerSec());
+    inputs.velocitySetpoint = velocitySetpoint;
     inputs.voltageOut = appliedVoltage;
     inputs.currentOut = Amps.of(shooterSim.getCurrentDrawAmps());
     inputs.connected = true;
@@ -87,6 +88,11 @@ public class ShooterIOSim implements ShooterIO {
   public void setShooterVelocity(AngularVelocity velocity) {
     velocitySetpoint = velocity;
     requestedExitVelocity = ShooterMath.flywheelVelocityToExitVelocity(velocity);
+  }
+
+  @Override
+  public void stop() {
+    velocitySetpoint = RPM.zero();
   }
 
   private void maybeLaunchProjectile(AngularVelocity velocity) {
@@ -131,7 +137,7 @@ public class ShooterIOSim implements ShooterIO {
             robotPose.getTranslation(),
             ballExitTranslation.toTranslation2d(),
             fieldRelativeSpeedsSupplier.get(),
-            robotPose.getRotation().plus(new Rotation2d(Math.PI)),
+            robotPose.getRotation().plus(Rotation2d.kPi),
             Meters.of(ballExitTranslation.getZ()),
             exitVelocity,
             launchAngleSupplier.get());
