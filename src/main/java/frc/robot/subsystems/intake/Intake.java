@@ -60,6 +60,10 @@ public class Intake extends SubsystemBase {
     return io.consumeGamePiece();
   }
 
+  public void addGamePieces(int count) {
+    io.addGamePieces(count);
+  }
+
   public Pose3d[] getHeldGamePiecePoses(Pose2d robotPose) {
     return io.getHeldGamePiecePoses(robotPose);
   }

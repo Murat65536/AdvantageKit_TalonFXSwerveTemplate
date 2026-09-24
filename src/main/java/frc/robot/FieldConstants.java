@@ -26,6 +26,23 @@ public final class FieldConstants {
           HUB_EDGE_DISTANCE_FROM_DRIVER_STATION + HUB_LENGTH / 2.0, FIELD_WIDTH / 2.0);
   public static final double HUB_HEIGHT_METERS = Units.inchesToMeters(104.0);
 
+  /**
+   * Scoring volume of the hub, taken from maple-sim (the authority that decides whether a shot
+   * counts). Source: {@code RebuiltHub.blueHubPose = (4.5974, 4.034536, 1.5748)} passed to {@code
+   * Goal(xDimension=47in, yDimension=47in, height=10in)}, and {@code Goal.checkValidity} -> {@code
+   * positionChecker = box(xyBox, minZ = position.z, maxZ = position.z + height)}.
+   *
+   * <p>Fuel scores when its center is inside the 47in x 47in footprint AND its height is within
+   * this 10in band. Note {@link #HUB_HEIGHT_METERS} (104in) is the physical tower height and is NOT
+   * the scoring height -- aiming at it overshoots the window by ~0.8 m.
+   */
+  public static final double HUB_SCORING_Z_MIN = 1.5748;
+
+  public static final double HUB_SCORING_Z_MAX = HUB_SCORING_Z_MIN + Units.inchesToMeters(10.0);
+
+  /** Center of the scoring height band -- the height a shot should be solved to arrive at. */
+  public static final double HUB_SCORING_Z_CENTER = (HUB_SCORING_Z_MIN + HUB_SCORING_Z_MAX) / 2.0;
+
   // Bumps and trenches (the obstacles flanking the hub on both alliance sides)
   public static final double BUMP_WIDTH = Units.inchesToMeters(73.0);
   public static final double BUMP_DEPTH = Units.inchesToMeters(44.4);

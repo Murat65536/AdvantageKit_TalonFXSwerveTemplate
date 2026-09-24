@@ -62,6 +62,11 @@ public class IntakeIOSim implements IntakeIO {
   }
 
   @Override
+  public void addGamePieces(int count) {
+    mapleSimIntake.addGamePiecesToIntake(count);
+  }
+
+  @Override
   public Pose3d[] getHeldGamePiecePoses(Pose2d robotPose) {
     int storedGamePieces = getStoredGamePieces();
     return IntStream.range(0, storedGamePieces)

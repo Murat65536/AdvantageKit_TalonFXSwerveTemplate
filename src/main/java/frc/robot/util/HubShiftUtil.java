@@ -2,6 +2,7 @@ package frc.robot.util;
 
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
+import frc.robot.FieldConstants;
 import java.util.Optional;
 
 /**
@@ -74,8 +75,7 @@ public final class HubShiftUtil {
     if (inactiveFirst.isEmpty()) {
       return true;
     }
-    boolean ourHubActiveInShift1 =
-        inactiveFirst.get() != DriverStation.getAlliance().orElse(Alliance.Blue);
+    boolean ourHubActiveInShift1 = inactiveFirst.get() != FieldConstants.getAlliance();
     return switch (getShift(matchTime)) {
       case TRANSITION, ENDGAME -> true;
       case SHIFT_1, SHIFT_3 -> ourHubActiveInShift1;

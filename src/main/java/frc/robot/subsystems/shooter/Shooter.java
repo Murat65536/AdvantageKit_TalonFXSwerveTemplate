@@ -78,8 +78,7 @@ public class Shooter extends SubsystemBase {
                       robotPoseSupplier.get(), fieldRelativeSpeedsSupplier.get());
               latestSolution = solution;
 
-              AngularVelocity flywheelTarget =
-                  RPM.of(solution.flywheelVelocity().in(RPM) * HUB_FLYWHEEL_RPM_SCALE);
+              AngularVelocity flywheelTarget = solution.flywheelVelocity();
               hood.setTargetAngle(solution.launchAngle());
               setVelocity(flywheelTarget);
 
@@ -142,5 +141,10 @@ public class Shooter extends SubsystemBase {
 
   public boolean isShotInRange() {
     return latestSolution != null && latestSolution.inRange();
+  }
+
+  /** Latest shot solution, or null when {@link #shootAtTarget} is not running. */
+  public ShotSolution getShotSolution() {
+    return latestSolution;
   }
 }

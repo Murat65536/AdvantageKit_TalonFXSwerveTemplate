@@ -7,7 +7,6 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
-import edu.wpi.first.math.geometry.Translation3d;
 import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.math.system.plant.LinearSystemId;
@@ -16,8 +15,6 @@ import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.simulation.FlywheelSim;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 import org.ironmaple.simulation.SimulatedArena;
@@ -34,7 +31,7 @@ public class ShooterIOSim implements ShooterIO {
   private final double simMaxFlywheelSpeedRadPerSec = DCMotor.getNeoVortex(4).freeSpeedRadPerSec;
   private Voltage appliedVoltage = Volts.zero();
   private AngularVelocity velocitySetpoint = RPM.zero();
-  private LinearVelocity requestedExitVelocity = SHOOTER_EXIT_VELOCITY;
+  private LinearVelocity requestedExitVelocity = MetersPerSecond.zero();
   private double lastShotTimeSeconds = Double.NEGATIVE_INFINITY;
 
   public ShooterIOSim(
@@ -95,12 +92,11 @@ public class ShooterIOSim implements ShooterIO {
     velocitySetpoint = RPM.zero();
   }
 
+  /** AdvantageScope key for the in-flight fuel path. */
+  private static final String TRAJECTORY_LOG_KEY = "FieldSimulation/ShooterTrajectory";
+
   private void maybeLaunchProjectile(AngularVelocity velocity) {
     if (velocitySetpoint.lte(RPM.zero())) {
-      return;
-    }
-
-    if (velocity.lt(velocitySetpoint.minus(SHOOTER_AT_SPEED_TOLERANCE))) {
       return;
     }
 
@@ -110,45 +106,25 @@ public class ShooterIOSim implements ShooterIO {
     }
 
     Pose2d robotPose = robotPoseSupplier.get();
-    List<Pose3d> trajectory = new ArrayList<>();
-    boolean launchedProjectile = false;
 
     if (consumeGamePiece.getAsBoolean()) {
-      launchProjectile(
-          robotPose, BALL_EXIT_TRANSLATION, "Shooter", requestedExitVelocity, trajectory);
-      launchedProjectile = true;
-    } else {
-      Logger.recordOutput("FieldSimulation/ShooterTrajectory", new Pose3d[] {});
-    }
-
-    if (launchedProjectile) {
+      launchProjectile(robotPose, requestedExitVelocity);
       lastShotTimeSeconds = now;
     }
   }
 
-  private void launchProjectile(
-      Pose2d robotPose,
-      Translation3d ballExitTranslation,
-      String trajectoryKeySuffix,
-      LinearVelocity exitVelocity,
-      List<Pose3d> trajectoryBuffer) {
+  private void launchProjectile(Pose2d robotPose, LinearVelocity exitVelocity) {
     RebuiltFuelOnFly shot =
         new RebuiltFuelOnFly(
             robotPose.getTranslation(),
-            ballExitTranslation.toTranslation2d(),
+            BALL_EXIT_TRANSLATION.toTranslation2d(),
             fieldRelativeSpeedsSupplier.get(),
             robotPose.getRotation().plus(Rotation2d.kPi),
-            Meters.of(ballExitTranslation.getZ()),
+            Meters.of(BALL_EXIT_TRANSLATION.getZ()),
             exitVelocity,
             launchAngleSupplier.get());
     shot.withProjectileTrajectoryDisplayCallBack(
-        trajectory -> {
-          trajectoryBuffer.clear();
-          trajectoryBuffer.addAll(trajectory);
-          Logger.recordOutput(
-              "FieldSimulation/" + trajectoryKeySuffix + "ShooterTrajectory",
-              trajectory.toArray(Pose3d[]::new));
-        });
+        trajectory -> Logger.recordOutput(TRAJECTORY_LOG_KEY, trajectory.toArray(Pose3d[]::new)));
     SimulatedArena.getInstance().addGamePieceProjectile(shot);
   }
 }

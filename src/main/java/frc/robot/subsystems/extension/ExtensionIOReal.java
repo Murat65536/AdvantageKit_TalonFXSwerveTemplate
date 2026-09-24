@@ -37,7 +37,6 @@ public class ExtensionIOReal implements ExtensionIO {
     config.idleMode(IdleMode.kBrake).smartCurrentLimit((int) MOTOR_CURRENT_LIMIT.in(Amps));
     config
         .limitSwitch
-        .reverseLimitSwitchEnabled(true)
         .reverseLimitSwitchType(Type.kNormallyOpen)
         .reverseLimitSwitchTriggerBehavior(Behavior.kStopMovingMotorAndSetPosition)
         .reverseLimitSwitchPosition(MIN_POSITION_ROT)

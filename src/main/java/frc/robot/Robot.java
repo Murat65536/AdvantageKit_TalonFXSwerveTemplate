@@ -12,6 +12,7 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.IterativeRobotBase;
 import edu.wpi.first.wpilibj.Watchdog;
+import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj.simulation.RoboRioSim;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -100,6 +101,11 @@ public class Robot extends LoggedRobot {
 
     if (Constants.currentMode == Constants.Mode.SIM) {
       SimulatedArena.getInstance().placeGamePiecesOnField();
+      robotContainer.preloadFuel(10);
+      DriverStationSim.setDsAttached(true);
+      DriverStationSim.setAutonomous(false);
+      DriverStationSim.setEnabled(true);
+      DriverStationSim.notifyNewData();
     }
   }
 

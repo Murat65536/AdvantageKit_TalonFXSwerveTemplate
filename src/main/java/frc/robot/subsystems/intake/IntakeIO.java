@@ -24,6 +24,8 @@ public interface IntakeIO {
     return false;
   }
 
+  default void addGamePieces(int count) {}
+
   default Pose3d[] getHeldGamePiecePoses(Pose2d robotPose) {
     return new Pose3d[] {};
   }

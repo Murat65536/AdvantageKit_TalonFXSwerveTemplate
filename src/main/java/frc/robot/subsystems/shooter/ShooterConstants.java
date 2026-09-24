@@ -41,13 +41,8 @@ public class ShooterConstants {
       new Translation3d(Units.inchesToMeters(6.384), 0, Units.inchesToMeters(21.2315));
   public static final Distance FLYWHEEL_EFFECTIVE_RADIUS = Inches.of(2.0);
   public static final double EXIT_VELOCITY_SLIP_FACTOR = 0.58;
-  public static final double HUB_FLYWHEEL_RPM_SCALE = 0.80;
-  public static final AngularVelocity SHOOTER_READY_VELOCITY = RPM.of(2500);
   public static final double EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC =
       FLYWHEEL_EFFECTIVE_RADIUS.in(Meters) * EXIT_VELOCITY_SLIP_FACTOR;
-  public static final LinearVelocity SHOOTER_EXIT_VELOCITY =
-      MetersPerSecond.of(
-          SHOOTER_READY_VELOCITY.in(RadiansPerSecond) * EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC);
   public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.03);
 
   /**

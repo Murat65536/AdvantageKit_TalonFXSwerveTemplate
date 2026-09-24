@@ -101,6 +101,10 @@ dependencies {
 test {
     useJUnitPlatform()
     systemProperty 'junit.jupiter.extensions.autodetection.enabled', 'true'
+    // maple-sim / WPILib HAL cannot be re-initialized within a single JVM: a second
+    // SimulatedArena setup throws IllegalThreadStateException. Fork per test class so
+    // each simulation test gets a clean HAL.
+    forkEvery = 1
 }
 
 // Simulation configuration (e.g. environment variables).
@@ -176,12 +180,15 @@ task(eventDeploy) {
 createVersionFile.dependsOn(eventDeploy)
 
 // Spotless formatting
-project.compileJava.dependsOn(spotlessApply)
+// project.compileJava.dependsOn(spotlessApply)
 spotless {
     java {
         target fileTree(".") {
             include "**/*.java"
-            exclude "**/build/**", "**/build-*/**"
+            // BuildConstants.java is regenerated (unformatted) by createVersionFile AFTER
+            // spotlessApply runs, so including it makes `./gradlew build` fail its own
+            // format check on a gitignored generated file.
+            exclude "**/build/**", "**/build-*/**", "**/BuildConstants.java"
         }
         toggleOffOn()
         googleJavaFormat()

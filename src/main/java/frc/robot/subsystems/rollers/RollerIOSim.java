@@ -11,7 +11,9 @@ import edu.wpi.first.wpilibj.simulation.FlywheelSim;
 
 /**
  * Simulated roller: a Neo Vortex spinning a small flywheel. Emulates the Spark's onboard velocity
- * loop (kV feedforward + proportional feedback, both in duty cycle per RPM) on the RIO.
+ * loop (kV feedforward + proportional feedback). Gains are in VOLTS per RPM, matching REV's {@code
+ * closedLoop.feedForward.kV()} / {@code pid()} convention used by {@link RollerIOSparkFlex}, so the
+ * same constants behave the same way in sim and on the robot.
  */
 public class RollerIOSim implements RollerIO {
   private static final double LOOP_PERIOD_SECONDS = 0.02;
@@ -37,8 +39,9 @@ public class RollerIOSim implements RollerIO {
     if (closedLoop) {
       double targetRpm = velocitySetpoint.in(RPM);
       double measuredRpm = sim.getAngularVelocityRPM();
-      double dutyCycle = kV * targetRpm + kP * (targetRpm - measuredRpm);
-      appliedVolts = MathUtil.clamp(dutyCycle, -1.0, 1.0) * 12.0;
+      // kV and kP are volts per RPM (see class doc), so this sums directly to volts.
+      double volts = kV * targetRpm + kP * (targetRpm - measuredRpm);
+      appliedVolts = MathUtil.clamp(volts, -12.0, 12.0);
     }
     sim.setInputVoltage(appliedVolts);
     sim.update(LOOP_PERIOD_SECONDS);

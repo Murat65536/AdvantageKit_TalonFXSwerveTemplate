@@ -25,8 +25,14 @@ public final class ShootCommands {
 
   /**
    * Full shot: aim the flywheel/hood at the target, spin the kicker, and automatically feed fuel
-   * whenever the flywheel, hood, and kicker are at their setpoints and the drive is pointed at the
-   * target. Does not control the drive; pair with {@link DriveCommands#joystickDriveFacingPoint}.
+   * whenever the flywheel and hood are at their setpoints, a shot solution exists, and the drive is
+   * pointed at the target.
+   *
+   * <p>The kicker is deliberately NOT part of the feed gate. It is an injection roller started by
+   * this same command, and it dips on every shot, so gating the feed on it reaching a +/-50 RPM
+   * tolerance deadlocks the sequence instead of protecting it.
+   *
+   * <p>Does not control the drive; pair with {@link DriveCommands#joystickDriveAimAtTarget}.
    */
   public static Command shootAtTarget(
       Drive drive,
@@ -41,16 +47,14 @@ public final class ShootCommands {
         () -> {
           boolean flywheelReady = shooter.atSetpoint();
           boolean hoodReady = hood.atSetpoint();
-          boolean kickerReady = kicker.atSetpoint();
           boolean aimed = ShooterMath.isAimed(drive.getPose());
           boolean solved = shooter.hasShotSolution();
           Logger.recordOutput("Shoot/FlywheelReady", flywheelReady);
           Logger.recordOutput("Shoot/HoodReady", hoodReady);
-          Logger.recordOutput("Shoot/KickerReady", kickerReady);
           Logger.recordOutput("Shoot/Aimed", aimed);
           Logger.recordOutput(
               "Shoot/AimErrorDeg", Math.toDegrees(ShooterMath.getAimErrorRad(drive.getPose())));
-          return flywheelReady && hoodReady && kickerReady && aimed && solved;
+          return flywheelReady && hoodReady && aimed && solved;
         };
 
     return Commands.parallel(

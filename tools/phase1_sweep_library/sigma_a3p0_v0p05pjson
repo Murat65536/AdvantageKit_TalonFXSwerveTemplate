@@ -1,0 +1,52 @@
+{
+  "assumptions": {
+    "sigma_angle_deg": 3.0,
+    "sigma_v_mps": 0.05,
+    "sigma_dist_m": 0.08,
+    "sigma_heading_deg": 1.5,
+    "measured": false,
+    "note": "Unmeasured hypothesis -- replace with real logged stddevs (see Phase 2 in module docstring)."
+  },
+  "shots": [
+    {
+      "distance_m": 2.286,
+      "distance_in": 90.0,
+      "angle_deg": 59.92,
+      "exit_v_mps": 6.3,
+      "tof_s": 0.7239,
+      "hit_prob": 1.0
+    },
+    {
+      "distance_m": 3.302,
+      "distance_in": 130.0,
+      "angle_deg": 52.5,
+      "exit_v_mps": 7.1,
+      "tof_s": 0.764,
+      "hit_prob": 1.0
+    },
+    {
+      "distance_m": 3.81,
+      "distance_in": 150.0,
+      "angle_deg": 53.49,
+      "exit_v_mps": 7.5,
+      "tof_s": 0.8537,
+      "hit_prob": 1.0
+    },
+    {
+      "distance_m": 4.318,
+      "distance_in": 170.0,
+      "angle_deg": 51.25,
+      "exit_v_mps": 7.8,
+      "tof_s": 0.8844,
+      "hit_prob": 1.0
+    },
+    {
+      "distance_m": 5.334,
+      "distance_in": 210.0,
+      "angle_deg": 51.12,
+      "exit_v_mps": 8.5,
+      "tof_s": 0.9999,
+      "hit_prob": 1.0
+    }
+  ]
+}

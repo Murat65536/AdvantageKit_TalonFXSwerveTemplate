@@ -21,10 +21,16 @@ import java.util.List;
 /** Centralized autonomous routine definitions backed by Choreo. */
 public class Autos {
   /**
-   * How long a "shootHub" Choreo event runs the full shot (spin-up + auto-feed). The previous
-   * flywheel-only binding used 1.0 s; with the feed path this needs to cover spin-up plus feeding.
+   * How long a "shootHub" Choreo event runs the full shot (spin-up + auto-feed).
+   *
+   * <p>Measured from {@code LeftTriggerShotDiagnosticTest}: the flywheel reaches setpoint at ~0.5
+   * s, but the drive's aim only converges inside {@code AIM_TOLERANCE_RAD} at ~1.5-2.0 s, and
+   * feeding cannot begin until it does. A 0.5 s {@link
+   * frc.robot.subsystems.shooter.ShooterConstants#FEED_INTAKE_PULSE} then has to fit after that.
+   * The previous 1.0 s value expired before a single fuel was fed, so auto shoot events scored
+   * nothing.
    */
-  public static final double SHOOT_HUB_EVENT_SECONDS = 1.0;
+  public static final double SHOOT_HUB_EVENT_SECONDS = 3.0;
 
   private final Drive drive;
   private final AutoFactory autoFactory;

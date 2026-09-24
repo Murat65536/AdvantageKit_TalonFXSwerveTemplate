@@ -13,15 +13,7 @@ public final class FeederConstants {
 
   public static final RollerConfig CONFIG =
       new RollerConfig(
-          "Feeder",
-          CAN_ID,
-          false,
-          Amps.of(70),
-          /* kP */ 0.0001,
-          /* kI */ 0.0,
-          /* kD */ 0.0,
-          /* kV */ 0.00185,
-          RPM.of(100));
+          "Feeder", CAN_ID, false, Amps.of(70), 0.0001, 0.0, 0.0, 0.00185, RPM.of(100));
 
   public static final AngularVelocity FEED_VELOCITY = RPM.of(2000);
   public static final AngularVelocity REVERSE_VELOCITY = RPM.of(-2000);
