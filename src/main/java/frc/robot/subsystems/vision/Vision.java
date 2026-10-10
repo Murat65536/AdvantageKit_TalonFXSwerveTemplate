@@ -54,6 +54,14 @@ public class Vision extends SubsystemBase {
    *
    * @param cameraIndex The index of the camera to use.
    */
+  public int getCameraCount() {
+    return inputs.length;
+  }
+
+  public boolean isCameraConnected(int cameraIndex) {
+    return inputs[cameraIndex].connected;
+  }
+
   public Rotation2d getTargetX(int cameraIndex) {
     return inputs[cameraIndex].latestTargetObservation.tx();
   }

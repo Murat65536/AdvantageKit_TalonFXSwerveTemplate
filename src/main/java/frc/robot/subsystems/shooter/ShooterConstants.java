@@ -46,11 +46,14 @@ public class ShooterConstants {
   public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.03);
 
   /**
-   * Robot-relative X offset of the shooter barrel used for range calculation. NOTE: the previous
-   * robot code used -5.202363 in (barrel behind robot center, matching a rear-facing shooter); the
-   * sign here is kept as tuned with the current RPM map. Verify on the robot.
+   * Robot-relative X offset of the shooter barrel used for range calculation.
+   *
+   * <p>The shooter faces rearward (toward {@code robotPose.getRotation() + Pi}). In the robot's
+   * forward-facing coordinate frame (+X forward, -X rearward), the barrel exit is located at {@code
+   * -BALL_EXIT_TRANSLATION.getX()} (-6.384 in), placing it 6.384 in closer to the target when
+   * aiming.
    */
-  public static final double SHOOTER_OFFSET_X_METERS = Units.inchesToMeters(5.202363);
+  public static final double SHOOTER_OFFSET_X_METERS = -BALL_EXIT_TRANSLATION.getX();
 
   // Dynamic shot limits and conversion
   public static final LinearVelocity MIN_DYNAMIC_EXIT_VELOCITY = MetersPerSecond.of(8.0);

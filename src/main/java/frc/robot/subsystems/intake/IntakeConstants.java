@@ -9,7 +9,8 @@ public class IntakeConstants {
   // Motor config
   public static final int ROLLER_MOTOR_ID = 17;
   public static final boolean ROLLER_INVERTED = false;
-  public static final Current ROLLER_CURRENT_LIMIT = Amps.of(30);
+  // Raised from 30 A: starting next to a ball (in or out) stalled the roller at the limit
+  public static final Current ROLLER_CURRENT_LIMIT = Amps.of(40);
 
   // Voltages
   public static final Voltage INTAKE_RUN_VOLTAGE = Volts.of(11);

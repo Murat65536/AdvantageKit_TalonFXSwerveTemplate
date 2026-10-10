@@ -26,6 +26,12 @@ public class ExtensionConstants {
   public static final Time EXTEND_TIME = Seconds.of(0.51);
 
   /**
+   * Safety cap on a retract, in case the reverse limit switch fails or comes unplugged. A healthy
+   * retract takes well under this (the systems check fails one slower than 4x EXTEND_TIME).
+   */
+  public static final Time RETRACT_TIMEOUT = Seconds.of(2.0);
+
+  /**
    * While feeding fuel to the shooter the hopper is slowly pulled inward, ramping from the start to
    * the end voltage over {@link #CREEP_RAMP_TIME}, to keep fuel flowing into the indexer.
    */

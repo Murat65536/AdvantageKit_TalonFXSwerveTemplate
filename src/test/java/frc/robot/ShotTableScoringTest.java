@@ -1,8 +1,12 @@
 package frc.robot;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import edu.wpi.first.hal.HAL;
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.util.Units;
 import frc.robot.subsystems.shooter.ShooterConstants;
 import frc.robot.subsystems.shooter.ShooterMath;
@@ -135,5 +139,44 @@ public class ShotTableScoringTest {
     assertTrue(
         FieldConstants.HUB_HEIGHT_METERS > FieldConstants.HUB_SCORING_Z_MAX + 0.5,
         "tower height should be well above the scoring band");
+  }
+
+  @Test
+  void launchTranslationMatchesSimulatorProjectileOrigin() {
+    // The shooter barrel faces rearward (+Pi from robot heading). The simulator launches
+    // projectile from: robotPose.translation + BALL_EXIT_TRANSLATION.toTranslation2d() rotated by
+    // (robotRotation + Pi). ShooterMath.getLaunchTranslation must compute the exact same physical
+    // point on the field for any arbitrary robot pose.
+    Pose2d[] testPoses = {
+      new Pose2d(0, 0, Rotation2d.kZero),
+      new Pose2d(3.5, 4.2, Rotation2d.fromDegrees(45.0)),
+      new Pose2d(7.8, 1.2, Rotation2d.fromDegrees(-120.0)),
+      new Pose2d(2.1, 6.5, Rotation2d.fromDegrees(180.0))
+    };
+
+    for (Pose2d pose : testPoses) {
+      Translation2d mathLaunch = ShooterMath.getLaunchTranslation(pose);
+      Translation2d simLaunch =
+          pose.getTranslation()
+              .plus(
+                  ShooterConstants.BALL_EXIT_TRANSLATION
+                      .toTranslation2d()
+                      .rotateBy(pose.getRotation().plus(Rotation2d.kPi)));
+
+      assertEquals(
+          simLaunch.getX(),
+          mathLaunch.getX(),
+          1e-6,
+          String.format(
+              "X mismatch at pose %s: sim=%.6f math=%.6f",
+              pose, simLaunch.getX(), mathLaunch.getX()));
+      assertEquals(
+          simLaunch.getY(),
+          mathLaunch.getY(),
+          1e-6,
+          String.format(
+              "Y mismatch at pose %s: sim=%.6f math=%.6f",
+              pose, simLaunch.getY(), mathLaunch.getY()));
+    }
   }
 }

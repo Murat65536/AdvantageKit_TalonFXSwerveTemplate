@@ -274,6 +274,15 @@ public class Drive extends SubsystemBase {
     }
   }
 
+  public boolean isGyroConnected() {
+    return gyroInputs.connected;
+  }
+
+  /** Direct access to one module (0 FL, 1 FR, 2 BL, 3 BR), for the pit systems check. */
+  public Module getModule(int index) {
+    return modules[index];
+  }
+
   /** Stops the drive. */
   public void stop() {
     runVelocity(new ChassisSpeeds());

@@ -1,7 +1,7 @@
 package frc.robot;
 
 import static edu.wpi.first.units.Units.*;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.ctre.phoenix6.unmanaged.Unmanaged;
 import edu.wpi.first.hal.HAL;
@@ -45,6 +45,8 @@ import org.junit.jupiter.api.Test;
  * and reports WHICH of the ready-gate conditions is blocking the shot.
  */
 class LeftTriggerShotDiagnosticTest {
+  private static final int PRELOAD = 10;
+
   private static final double DT = 0.02;
 
   @Test
@@ -56,7 +58,9 @@ class LeftTriggerShotDiagnosticTest {
     DriverStationSim.notifyNewData();
     DriverStation.refreshData();
 
-    SimulatedArena.overrideInstance(new Arena2026Rebuilt(false));
+    Arena2026Rebuilt arena = new Arena2026Rebuilt(false);
+    arena.setShouldRunClock(false);
+    SimulatedArena.overrideInstance(arena);
     SwerveDriveSimulation driveSimulation =
         new SwerveDriveSimulation(
             DriveConstants.mapleSimConfig, new Pose2d(3, 3, new Rotation2d()));
@@ -73,7 +77,7 @@ class LeftTriggerShotDiagnosticTest {
     drive.setSimPoseConsumer(driveSimulation::setSimulationWorldPose);
 
     Intake intake = new Intake(new IntakeIOSim(driveSimulation));
-    intake.addGamePieces(10);
+    intake.addGamePieces(PRELOAD);
     Extension extension = new Extension(new ExtensionIOSim());
     Hood hood = new Hood(new HoodIOSim());
     Kicker kicker = new Kicker(new RollerIOSim(KickerConstants.CONFIG));
@@ -91,6 +95,9 @@ class LeftTriggerShotDiagnosticTest {
                         && intake.consumeGamePiece()));
 
     System.out.println("[diag] stored fuel at start = " + intake.getStoredGamePieces());
+    // Guards the maple-sim 0.4.0-beta addGamePiecesToIntake bug (max instead of min), which
+    // silently filled every preload to the 40-piece capacity.
+    assertEquals(PRELOAD, intake.getStoredGamePieces(), "preload must hold exactly PRELOAD fuel");
 
     Command aim = DriveCommands.joystickDriveAimAtTarget(drive, () -> 0.0, () -> 0.0);
     Command shoot =
@@ -108,7 +115,7 @@ class LeftTriggerShotDiagnosticTest {
       while ((wait = nextTickNanos - System.nanoTime()) > 0) {
         LockSupport.parkNanos(wait);
       }
-      nextTickNanos += (long) (DT * 1e9);
+      nextTickNanos = Math.max(nextTickNanos + (long) (DT * 1e9), System.nanoTime());
       Unmanaged.feedEnable(100);
       CommandScheduler.getInstance().run();
       SimulatedArena.getInstance().simulationPeriodic();
@@ -145,11 +152,22 @@ class LeftTriggerShotDiagnosticTest {
       }
     }
 
+    // Allow any fuel launched near the end of the test window to finish flight into the hub
+    for (int j = 0; j < 25 && readBlueFuelInHub() < PRELOAD; j++) {
+      try {
+        Thread.sleep(20);
+      } catch (InterruptedException ignored) {
+      }
+      SimulatedArena.getInstance().simulationPeriodic();
+    }
+
     int fuelScored = readBlueFuelInHub();
     System.out.printf(
         "[diag] TotalFuelInHub (blue) = %d, blueScore = %d%n",
         fuelScored, SimulatedArena.getInstance().getScore(true));
-    assertTrue(fuelScored > 0, "no fuel scored in the hub after 4s of aiming and shooting");
+    // Every preloaded ball must score. This caught fuel being fed blind at -145 deg aim error
+    // (5/10 scored) before the feed gate's hold was fixed to start false on each run.
+    assertEquals(PRELOAD, fuelScored, "fuel scored out of " + PRELOAD + " preloaded");
   }
 
   /** Reads maple-sim's own scoring breakdown so the assertion uses the sim's verdict, not ours. */

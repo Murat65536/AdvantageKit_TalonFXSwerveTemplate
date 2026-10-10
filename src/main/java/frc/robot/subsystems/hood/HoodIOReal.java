@@ -12,13 +12,17 @@ import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
 import com.revrobotics.spark.config.SparkMaxConfig;
 import edu.wpi.first.math.MathUtil;
+import edu.wpi.first.math.filter.Debouncer;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
+import edu.wpi.first.wpilibj.DriverStation;
 
 /**
  * Real hardware IO for the hood: two NEO 550s on Spark MAX (right follows left, inverted) and an
- * absolute encoder on the left Spark. Position control is a proportional loop on the RIO.
+ * absolute encoder on the left Spark. Position control is a proportional loop on the RIO that
+ * tracks a trapezoid-profiled setpoint, with a stall cutoff.
  */
 public class HoodIOReal implements HoodIO {
   private final SparkMax leftMotor = new SparkMax(LEFT_MOTOR_CAN_ID, MotorType.kBrushless);
@@ -30,7 +34,22 @@ public class HoodIOReal implements HoodIO {
   private final Alert rightMotorDisconnected =
       new Alert("Hood right Spark MAX disconnected!", AlertType.kError);
 
+  private final Alert stallAlert =
+      new Alert(
+          "Hood stalled (pushing into something); output cut until disabled", AlertType.kError);
+
+  private final TrapezoidProfile profile =
+      new TrapezoidProfile(
+          new TrapezoidProfile.Constraints(
+              HOOD_MAX_VELOCITY_DEG_PER_SEC, HOOD_MAX_ACCEL_DEG_PER_SEC_SQ));
+  private final Debouncer stallDebounce =
+      new Debouncer(HOOD_STALL_TIME_SECONDS, Debouncer.DebounceType.kRising);
+
   private Angle targetAngle = MIN_HOOD_ANGLE;
+  /** Profiled setpoint in hood degrees; the P loop tracks this, not the raw target. */
+  private TrapezoidProfile.State setpoint = new TrapezoidProfile.State();
+
+  private boolean stallCutoff = false;
 
   public HoodIOReal() {
     SparkMaxConfig leftConfig = new SparkMaxConfig();
@@ -54,33 +73,51 @@ public class HoodIOReal implements HoodIO {
 
   @Override
   public void updateInputs(HoodIOInputs inputs) {
-    double encoderPositionDeg = absoluteEncoder.getPosition();
+    // Unwrapped so the travel is continuous. Do not wrap the error instead: the travel is exactly
+    // half the encoder's period, so a full-travel move (50 -> 76) lands on the wrap boundary and
+    // drove the hood the wrong way into the 50 deg stop.
+    double encoderPositionDeg = unwrapEncoderPosition(absoluteEncoder.getPosition());
     double encoderVelocityDegPerSec = absoluteEncoder.getVelocity();
     Angle angle = encoderPositionToAngle(encoderPositionDeg);
+    double angleDeg = angle.in(Degrees);
+    // Encoder increases as the hood retracts, so hood angle velocity is the negative.
+    double velocityDegPerSec = -encoderVelocityDegPerSec;
+    double currentAmps = leftMotor.getOutputCurrent() + rightMotor.getOutputCurrent();
+    double goalDeg = targetAngle.in(Degrees);
 
-    // Error in encoder units, wrapped to the encoder's period so the discontinuity in the
-    // absolute encoder (one rev = 2x hood travel) never produces a runaway command.
-    double targetEncoderDeg = MAX_HOOD_ANGLE.minus(targetAngle).in(Degrees);
-    double encoderErrorDeg =
-        MathUtil.inputModulus(
-            targetEncoderDeg - encoderPositionDeg,
-            -ENCODER_POSITION_CONVERSION_FACTOR / 2.0,
-            ENCODER_POSITION_CONVERSION_FACTOR / 2.0);
-    boolean atSetpoint = Math.abs(encoderErrorDeg) <= HOOD_ANGLE_TOLERANCE.in(Degrees);
-    double controlVolts =
-        atSetpoint
-            ? 0.0
-            : MathUtil.clamp(
-                encoderErrorDeg * HOOD_KP_VOLTS_PER_DEG,
+    boolean atSetpoint = Math.abs(goalDeg - angleDeg) <= HOOD_ANGLE_TOLERANCE.in(Degrees);
+    double controlVolts = 0.0;
+    if (DriverStation.isDisabled()) {
+      // Start every enable from where the hood actually is, and give a stall another try.
+      setpoint = new TrapezoidProfile.State(angleDeg, 0.0);
+      stallCutoff = false;
+      stallDebounce.calculate(false);
+    } else {
+      setpoint = profile.calculate(0.02, setpoint, new TrapezoidProfile.State(goalDeg, 0.0));
+      boolean profileDone = setpoint.position == goalDeg && setpoint.velocity == 0.0;
+      if (!(atSetpoint && profileDone)) {
+        // Volts push the encoder up and hood angle = MAX - encoder, hence angle - setpoint.
+        controlVolts =
+            MathUtil.clamp(
+                (angleDeg - setpoint.position) * HOOD_KP_VOLTS_PER_DEG,
                 -MAX_CONTROL_VOLTAGE.in(Volts),
                 MAX_CONTROL_VOLTAGE.in(Volts));
-    leftMotor.setVoltage(controlVolts);
+      }
+      boolean stalling =
+          currentAmps > HOOD_STALL_CURRENT.in(Amps)
+              && Math.abs(velocityDegPerSec) < HOOD_STALL_VELOCITY_DEG_PER_SEC;
+      if (stallDebounce.calculate(stalling)) {
+        stallCutoff = true;
+      }
+    }
+    leftMotor.setVoltage(stallCutoff ? 0.0 : controlVolts);
+    stallAlert.set(stallCutoff);
 
     inputs.angle = angle;
-    // Encoder increases as the hood retracts, so hood angle velocity is the negative.
-    inputs.velocity = DegreesPerSecond.of(-encoderVelocityDegPerSec);
+    inputs.velocity = DegreesPerSecond.of(velocityDegPerSec);
     inputs.appliedVoltage = Volts.of(leftMotor.getAppliedOutput() * leftMotor.getBusVoltage());
-    inputs.current = Amps.of(leftMotor.getOutputCurrent() + rightMotor.getOutputCurrent());
+    inputs.current = Amps.of(currentAmps);
+    inputs.stallCutoff = stallCutoff;
     inputs.temp =
         Celsius.of(Math.max(leftMotor.getMotorTemperature(), rightMotor.getMotorTemperature()));
     inputs.leftMotorConnected = leftMotor.getLastError() == REVLibError.kOk;

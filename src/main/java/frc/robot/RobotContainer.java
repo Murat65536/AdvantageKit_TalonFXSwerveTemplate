@@ -12,19 +12,26 @@ import static edu.wpi.first.units.Units.RPM;
 import static frc.robot.subsystems.hood.HoodConstants.TRIM_STEP;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
+import choreo.util.ChoreoAllianceFlipUtil;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.wpilibj.Alert;
+import edu.wpi.first.wpilibj.Alert.AlertType;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.DriverStation.Alliance;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
+import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.auton.Autos;
+import frc.robot.auton.StartPoseCheck;
 import frc.robot.commands.DriveCommands;
-import frc.robot.commands.HubActivationWarningCommand;
+import frc.robot.commands.DriverRumble;
 import frc.robot.commands.ShootCommands;
+import frc.robot.commands.SystemsCheck;
 import frc.robot.commands.TuningCommands;
 import frc.robot.generated.TunerConstants;
 import frc.robot.generated.choreo.ChoreoTraj;
@@ -65,8 +72,12 @@ import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
 import frc.robot.subsystems.vision.VisionIOPhotonVisionSim;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.drivesims.SwerveDriveSimulation;
+import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
@@ -77,7 +88,6 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
  */
 public class RobotContainer {
   private static final int DRIVER_CONTROLLER_PORT = 0;
-  private static final double AIMING_RUMBLE = 0.8;
 
   // Subsystems
   private final Drive drive;
@@ -96,9 +106,28 @@ public class RobotContainer {
 
   // Controllers
   private final CommandXboxController driver = new CommandXboxController(DRIVER_CONTROLLER_PORT);
+  private final DriverRumble rumble =
+      new DriverRumble(level -> driver.getHID().setRumble(RumbleType.kBothRumble, level));
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
+
+  /** Blue-side start pose of each path-following auto, keyed by the chooser's command. */
+  private final Map<Command, Pose2d> autoStartPosesBlue = new HashMap<>();
+
+  private final Alert startPoseAlert = new Alert("", AlertType.kWarning);
+
+  private final Dashboard dashboard;
+
+  /**
+   * Selected auto's start pose for our alliance, refreshed each loop by {@link #updateDashboard}.
+   */
+  private Optional<Pose2d> selectedAutoStart = Optional.empty();
+
+  private boolean startPoseOk = true;
+
+  /** Driver toggle: feed even when our hub looks inactive. Starts off every boot. */
+  private boolean ignoreHubSchedule = false;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -196,9 +225,19 @@ public class RobotContainer {
     // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto Choices");
     autoChooser.addDefaultOption("No Auto", Commands.none());
+    addAuto(
+        "Left Trench (2 volleys)", autos.leftTrench(), ChoreoTraj.Left_Trench.initialPoseBlue());
+    addAuto(
+        "Right Trench (2 volleys)", autos.rightTrench(), ChoreoTraj.Right_Trench.initialPoseBlue());
+    addAuto(
+        "Center Preload (8 fuel)",
+        autos.centerPreload(),
+        ChoreoTraj.Center_Preload.initialPoseBlue());
     for (ChoreoTraj trajectory : autos.getAvailableTrajectories()) {
-      autoChooser.addOption(
-          "Choreo " + trajectory.name().replace('_', ' '), autos.buildTrajectoryAuto(trajectory));
+      addAuto(
+          "Choreo " + trajectory.name().replace('_', ' '),
+          autos.buildTrajectoryAuto(trajectory),
+          trajectory.initialPoseBlue());
     }
 
     // Set up SysId routines
@@ -242,6 +281,20 @@ public class RobotContainer {
         TuningCommands.captureShotDip(
             shooter, hood, kicker, feeder, indexer, intake, RPM.of(2500), Degrees.of(70.0)));
 
+    dashboard =
+        new Dashboard(
+            SystemsCheck.standard(
+                new SystemsCheck.PreferencesStore(),
+                drive,
+                vision,
+                intake,
+                indexer,
+                feeder,
+                kicker,
+                shooter,
+                hood,
+                extension));
+
     // Configure the button bindings
     configureBindings();
   }
@@ -256,6 +309,9 @@ public class RobotContainer {
    * robot once the alignment it is performing has converged.
    */
   private void configureBindings() {
+    // Warn the driver before our hub activates, for all of teleop.
+    RobotModeTriggers.teleop().whileTrue(rumble.hubWarning());
+
     // Default command: field-relative drive that slows down while driving into a bump
     drive.setDefaultCommand(
         DriveCommands.bumpAwareJoystickDrive(
@@ -298,9 +354,7 @@ public class RobotContainer {
         .whileTrue(
             DriveCommands.joystickDriveAimAtTarget(
                     drive, () -> -driver.getLeftY(), () -> -driver.getLeftX())
-                .alongWith(
-                    shootAtTarget(),
-                    Commands.startEnd(() -> setRumble(AIMING_RUMBLE), () -> setRumble(0.0))));
+                .alongWith(shootAtTarget(), rumble.whileAiming()));
 
     // Manual shot without auto-aim, for when the driver wants to aim by hand.
     driver.rightTrigger().whileTrue(shootAtTarget());
@@ -316,6 +370,13 @@ public class RobotContainer {
     // Clear a jam by reversing the whole fuel path
     driver.back().whileTrue(ShootCommands.unjam(shooter, kicker, feeder, indexer, intake));
 
+    // Hub-schedule override: toggles feeding into a hub the code thinks is inactive. For when the
+    // field's game data or match time is wrong; the driver can see the hub lights.
+    driver
+        .rightStick()
+        .onTrue(
+            Commands.runOnce(() -> ignoreHubSchedule = !ignoreHubSchedule).ignoringDisable(true));
+
     // Hood trim (applied on top of the calculated launch angle); Y resets it
     driver.povUp().onTrue(hood.adjustTrim(TRIM_STEP));
     driver.povDown().onTrue(hood.adjustTrim(TRIM_STEP.unaryMinus()));
@@ -324,16 +385,53 @@ public class RobotContainer {
 
   private Command shootAtTarget() {
     return ShootCommands.shootAtTarget(
-        drive, shooter, hood, kicker, feeder, indexer, intake, extension);
+        drive, shooter, hood, kicker, feeder, indexer, intake, extension, () -> ignoreHubSchedule);
   }
 
-  private void setRumble(double value) {
-    driver.getHID().setRumble(RumbleType.kBothRumble, value);
+  private void addAuto(String name, Command command, Pose2d startPoseBlue) {
+    autoChooser.addOption(name, command);
+    autoStartPosesBlue.put(command, startPoseBlue);
   }
 
-  /** Command that runs during teleop to warn drivers before the hub activates. */
-  public Command getHubActivationWarningCommand() {
-    return new HubActivationWarningCommand(this::setRumble);
+  /**
+   * Call while disabled: warns on the dashboard when the robot is not where the selected auto
+   * starts. Uses the estimated pose, so it is only as good as vision at the time of the check.
+   */
+  public void checkAutoStartPose() {
+    Optional<Pose2d> start = selectedAutoStart();
+    StartPoseCheck.Result result = StartPoseCheck.check(start, drive.getPose());
+    startPoseOk = result.ok();
+    Logger.recordOutput("Auto/StartPoseOk", result.ok());
+    Logger.recordOutput("Auto/StartPoseErrorM", result.translationErrorMeters());
+    Logger.recordOutput("Auto/StartHeadingErrorDeg", result.headingErrorDeg());
+    start.ifPresent(pose -> Logger.recordOutput("Auto/StartPose", pose));
+    startPoseAlert.setText(
+        String.format(
+            "Robot is %.0f cm / %.1f deg from the selected auto's start",
+            result.translationErrorMeters() * 100, result.headingErrorDeg()));
+    startPoseAlert.set(!result.ok());
+  }
+
+  private Optional<Pose2d> selectedAutoStart() {
+    return Optional.ofNullable(autoStartPosesBlue.get(autoChooser.get()))
+        .map(
+            pose ->
+                FieldConstants.getAlliance() == Alliance.Red
+                    ? ChoreoAllianceFlipUtil.flip(pose)
+                    : pose);
+  }
+
+  /** Call every loop: refreshes the Match and Pit tabs. */
+  public void updateDashboard() {
+    if (DriverStation.isEnabled()) {
+      startPoseOk = true; // only meaningful while lining up, before the match
+    }
+    dashboard.update(drive.getPose(), selectedAutoStart(), startPoseOk, ignoreHubSchedule);
+  }
+
+  /** Whether the driver has turned off the hub-schedule feed gate (right stick click). */
+  public boolean isIgnoringHubSchedule() {
+    return ignoreHubSchedule;
   }
 
   /**

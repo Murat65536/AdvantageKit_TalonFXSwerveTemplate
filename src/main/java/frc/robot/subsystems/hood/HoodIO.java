@@ -26,5 +26,7 @@ public interface HoodIO {
     public boolean rightMotorConnected = false;
     public boolean encoderConnected = false;
     public boolean atSetpoint = false;
+    /** Output cut by the stall detector; clears when the robot is disabled. */
+    public boolean stallCutoff = false;
   }
 }

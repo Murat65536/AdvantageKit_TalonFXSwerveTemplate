@@ -127,6 +127,10 @@ public class Shooter extends SubsystemBase {
     return inputs.velocity;
   }
 
+  public boolean isConnected() {
+    return inputs.connected;
+  }
+
   /** True when a nonzero velocity setpoint is active and the flywheel is within tolerance. */
   public boolean atSetpoint() {
     return targetVelocity.gt(RPM.zero())

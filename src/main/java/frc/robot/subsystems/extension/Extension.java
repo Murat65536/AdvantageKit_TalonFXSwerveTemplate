@@ -52,7 +52,10 @@ public class Extension extends SubsystemBase {
         .withName("ExtensionExtend");
   }
 
-  /** Retract until the reverse limit switch is pressed. */
+  /**
+   * Retract until the reverse limit switch is pressed, or for at most {@link
+   * ExtensionConstants#RETRACT_TIMEOUT} if the switch never trips.
+   */
   public Command retract() {
     return Commands.startEnd(
             () -> {
@@ -62,6 +65,7 @@ public class Extension extends SubsystemBase {
             () -> io.setMotorVoltage(Volts.zero()),
             this)
         .until(this::isRetracted)
+        .withTimeout(RETRACT_TIMEOUT.in(Seconds))
         .withName("ExtensionRetract");
   }
 
@@ -102,6 +106,25 @@ public class Extension extends SubsystemBase {
 
   public boolean isRetracted() {
     return inputs.reverseLimitPressed;
+  }
+
+  /** Drives outward at extend voltage (no command, no timer; for the systems check). */
+  public void driveOut() {
+    io.setMotorVoltage(EXTEND_VOLTAGE);
+  }
+
+  /** Drives inward at retract voltage; clears fully-extended like {@link #retract}. */
+  public void driveIn() {
+    fullyExtended = false;
+    io.setMotorVoltage(RETRACT_VOLTAGE);
+  }
+
+  public void stopMotor() {
+    io.setMotorVoltage(Volts.zero());
+  }
+
+  public boolean isConnected() {
+    return inputs.connected;
   }
 
   public BooleanSupplier fullyExtendedSupplier() {

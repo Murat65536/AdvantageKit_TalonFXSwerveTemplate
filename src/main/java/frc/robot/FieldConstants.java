@@ -1,6 +1,7 @@
 package frc.robot;
 
 import com.pathplanner.lib.util.FlippingUtil;
+import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rectangle2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
@@ -18,8 +19,18 @@ public final class FieldConstants {
   public static final double FIELD_WIDTH = FlippingUtil.fieldSizeY;
 
   // Hub
+  /**
+   * Distance from the inside face of the alliance wall to the near (rear) face of the hub.
+   *
+   * <p>Source: Official 2026 REBUILT Game Manual (TU22), Section 5.3 (Alliance Zone depth 158.6
+   * in), Section 5.4, and Figure 5-6 ("HUB distance to the ALLIANCE WALL"), which dimensions the
+   * alliance wall to the back face of the hub as exactly 158.6 in.
+   */
   public static final double HUB_EDGE_DISTANCE_FROM_DRIVER_STATION = Units.inchesToMeters(158.6);
+
+  /** Width and depth of the square hub structure (Game Manual Section 5.4, Figure 5-7). */
   public static final double HUB_LENGTH = Units.inchesToMeters(47.0);
+
   public static final double HUB_FAR_EDGE_X = HUB_EDGE_DISTANCE_FROM_DRIVER_STATION + HUB_LENGTH;
   public static final Translation2d BLUE_HUB_TRANSLATION =
       new Translation2d(
@@ -46,7 +57,24 @@ public final class FieldConstants {
   // Bumps and trenches (the obstacles flanking the hub on both alliance sides)
   public static final double BUMP_WIDTH = Units.inchesToMeters(73.0);
   public static final double BUMP_DEPTH = Units.inchesToMeters(44.4);
+  /**
+   * Trench structure, Game Manual TU22 section 5.6: 65.65 in wide (guardrail to bump), 47.0 in
+   * deep, with a 50.34 in wide opening under the arm. The trench AprilTags (IDs 22/23 on the blue
+   * side, welded layout x = 4.6631 / 4.5882 m) put its centre at x = 4.6257 m, the hub centre.
+   */
   public static final double TRENCH_WIDTH = Units.inchesToMeters(65.65);
+
+  public static final double TRENCH_DEPTH = Units.inchesToMeters(47.0);
+  public static final double TRENCH_OPENING_WIDTH = Units.inchesToMeters(50.34);
+
+  /**
+   * Centre line of the opening under each trench arm; the opening starts at the guardrail (section
+   * 5.6). Within 6 mm of the trench AprilTags (y = 7.4248 m), which the manual places
+   * "approximately centered on the opening".
+   */
+  public static final double RIGHT_TRENCH_LANE_CENTER_Y = TRENCH_OPENING_WIDTH / 2.0;
+
+  public static final double LEFT_TRENCH_LANE_CENTER_Y = FIELD_WIDTH - RIGHT_TRENCH_LANE_CENTER_Y;
 
   private static final double LEFT_TRENCH_Y_OFFSET = flipY(TRENCH_WIDTH);
   private static final double RIGHT_TRENCH_Y_OFFSET = 0.0;
@@ -58,7 +86,9 @@ public final class FieldConstants {
   private static final Rectangle2d BUMP =
       new Rectangle2d(Translation2d.kZero, new Translation2d(BUMP_DEPTH, BUMP_WIDTH));
   private static final Rectangle2d TRENCH =
-      new Rectangle2d(Translation2d.kZero, new Translation2d(BUMP_DEPTH, TRENCH_WIDTH));
+      new Rectangle2d(Translation2d.kZero, new Translation2d(TRENCH_DEPTH, TRENCH_WIDTH));
+  private static final double BLUE_TRENCH_X = BLUE_HUB_TRANSLATION.getX() - TRENCH_DEPTH / 2.0;
+  private static final double RED_TRENCH_X = flipX(BLUE_TRENCH_X + TRENCH_DEPTH);
 
   public static final List<Rectangle2d> BUMP_RECTANGLES =
       List.of(
@@ -69,10 +99,50 @@ public final class FieldConstants {
 
   public static final List<Rectangle2d> TRENCH_RECTANGLES =
       List.of(
-          place(TRENCH, HUB_EDGE_DISTANCE_FROM_DRIVER_STATION, LEFT_TRENCH_Y_OFFSET),
-          place(TRENCH, HUB_EDGE_DISTANCE_FROM_DRIVER_STATION, RIGHT_TRENCH_Y_OFFSET),
-          place(TRENCH, RED_SIDE_X, LEFT_TRENCH_Y_OFFSET),
-          place(TRENCH, RED_SIDE_X, RIGHT_TRENCH_Y_OFFSET));
+          place(TRENCH, BLUE_TRENCH_X, LEFT_TRENCH_Y_OFFSET),
+          place(TRENCH, BLUE_TRENCH_X, RIGHT_TRENCH_Y_OFFSET),
+          place(TRENCH, RED_TRENCH_X, LEFT_TRENCH_Y_OFFSET),
+          place(TRENCH, RED_TRENCH_X, RIGHT_TRENCH_Y_OFFSET));
+
+  /**
+   * Smallest side gap, in metres, between a square robot's bumpers and the edges of a trench
+   * opening it is under; negative means the bumpers overlap the trench leg or guardrail. Positive
+   * infinity when no part of the robot is under a trench.
+   *
+   * @param halfSide half the bumper-to-bumper width (the robot is treated as a square)
+   */
+  public static double trenchClearance(Pose2d pose, double halfSide) {
+    double cos = Math.abs(pose.getRotation().getCos());
+    double sin = Math.abs(pose.getRotation().getSin());
+    // Half-extents of the rotated square's axis-aligned bounding box.
+    double halfX = halfSide * (cos + sin);
+    double halfY = halfSide * (sin + cos);
+    double minX = pose.getX() - halfX;
+    double maxX = pose.getX() + halfX;
+    double minY = pose.getY() - halfY;
+    double maxY = pose.getY() + halfY;
+    double clearance = Double.POSITIVE_INFINITY;
+    for (Rectangle2d trench : TRENCH_RECTANGLES) {
+      Translation2d centre = trench.getCenter().getTranslation();
+      boolean overlapsX =
+          maxX > centre.getX() - trench.getXWidth() / 2.0
+              && minX < centre.getX() + trench.getXWidth() / 2.0;
+      boolean overlapsY =
+          maxY > centre.getY() - trench.getYWidth() / 2.0
+              && minY < centre.getY() + trench.getYWidth() / 2.0;
+      if (!overlapsX || !overlapsY) {
+        continue;
+      }
+      double laneCentre =
+          centre.getY() > FIELD_WIDTH / 2.0
+              ? LEFT_TRENCH_LANE_CENTER_Y
+              : RIGHT_TRENCH_LANE_CENTER_Y;
+      double low = laneCentre - TRENCH_OPENING_WIDTH / 2.0;
+      double high = laneCentre + TRENCH_OPENING_WIDTH / 2.0;
+      clearance = Math.min(clearance, Math.min(minY - low, high - maxY));
+    }
+    return clearance;
+  }
 
   // Corner pass targets used when the robot is on the far side of the hub and cannot score.
   public static final double CORNER_TARGET_X_OFFSET = 1.0;

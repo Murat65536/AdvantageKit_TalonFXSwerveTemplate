@@ -20,6 +20,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
+import frc.robot.auton.StartPoseCheck;
 import frc.robot.generated.TunerConstants;
 import frc.robot.subsystems.drive.Drive;
 import frc.robot.subsystems.drive.DriveConstants;
@@ -92,6 +93,7 @@ public class ChoreoTrackingHarness {
     double maxErrAfterEnd = 0.0;
     double finalErr = 0.0;
     double maxHeadErrDeg = 0.0;
+    double minTrenchClearance = Double.POSITIVE_INFINITY;
 
     long nextTickNanos = System.nanoTime();
     for (double t = 0.0; t <= total + HOLD_SECONDS + 1e-9; t += DT) {
@@ -131,6 +133,10 @@ public class ChoreoTrackingHarness {
       if (!following) maxErrAfterEnd = Math.max(maxErrAfterEnd, errDist);
       finalErr = errDist;
       maxHeadErrDeg = Math.max(maxHeadErrDeg, Math.abs(headErrDeg));
+      minTrenchClearance =
+          Math.min(
+              minTrenchClearance,
+              FieldConstants.trenchClearance(truth, DriveConstants.BUMPER_WIDTH_METERS / 2.0));
 
       csv.append(
           String.format(
@@ -157,13 +163,14 @@ public class ChoreoTrackingHarness {
 
     String summary =
         String.format(
-            "Trajectory=%s  duration=%.3fs  maxErr=%.3fm  maxErrAfterPathEnd=%.3fm  finalErr=%.3fm  maxHeadErr=%.1fdeg%nCSV=%s%n",
+            "Trajectory=%s  duration=%.3fs  maxErr=%.3fm  maxErrAfterPathEnd=%.3fm  finalErr=%.3fm  maxHeadErr=%.1fdeg  minTrenchClearance=%.3fm%nCSV=%s%n",
             TRAJECTORY,
             total,
             maxErr,
             maxErrAfterEnd,
             finalErr,
             maxHeadErrDeg,
+            minTrenchClearance,
             csvFile.getAbsolutePath());
     Files.writeString(new File(outDir, "choreo_tracking_summary.txt").toPath(), summary);
     System.out.print(summary);
@@ -172,6 +179,7 @@ public class ChoreoTrackingHarness {
     double recordedMaxErrAfterEnd = maxErrAfterEnd;
     double recordedFinalErr = finalErr;
     double recordedMaxHeadErrDeg = maxHeadErrDeg;
+    double recordedTrenchClearance = minTrenchClearance;
     assertAll(
         () ->
             assertTrue(
@@ -188,6 +196,15 @@ public class ChoreoTrackingHarness {
         () ->
             assertTrue(
                 recordedMaxHeadErrDeg <= MAX_HEADING_ERROR_DEGREES,
-                String.format("Maximum heading error was %.1f degrees", recordedMaxHeadErrDeg)));
+                String.format("Maximum heading error was %.1f degrees", recordedMaxHeadErrDeg)),
+        // A robot placed at the edge of StartPoseCheck's tolerance starts that far off the path, so
+        // the robot that tracked from a perfect start needs at least that much room.
+        () ->
+            assertTrue(
+                recordedTrenchClearance >= StartPoseCheck.TRANSLATION_TOLERANCE_METERS,
+                String.format(
+                    "Robot cleared the trench opening by only %.3f m; a start-pose error of %.3f m"
+                        + " would clip it",
+                    recordedTrenchClearance, StartPoseCheck.TRANSLATION_TOLERANCE_METERS)));
   }
 }

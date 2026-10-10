@@ -190,7 +190,18 @@ public final class TuningCommands {
             .alongWith(kicker.shoot(), feeder.feed(), indexer.index(), intake.intake())
             .withName("DipFire");
 
-    return Commands.sequence(spinUp, fire)
+    // The autoChooser builds this command ONCE and reuses the instance, so the captured holders
+    // above survive between runs. Reset them on every start or a second run reports the first
+    // run's minimum RPM.
+    Command reset =
+        Commands.runOnce(
+            () -> {
+              minRpm[0] = Double.POSITIVE_INFINITY;
+              preShotRpm[0] = 0.0;
+              feeding[0] = false;
+            });
+
+    return Commands.sequence(reset, spinUp, fire)
         .andThen(
             Commands.runOnce(
                 () -> {

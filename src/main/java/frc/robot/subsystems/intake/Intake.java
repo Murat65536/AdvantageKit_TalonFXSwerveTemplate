@@ -5,6 +5,7 @@ import static frc.robot.subsystems.intake.IntakeConstants.*;
 
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -52,8 +53,33 @@ public class Intake extends SubsystemBase {
         this);
   }
 
+  /** Runs the roller forward at intake voltage (no command; for the systems check). */
+  public void runRoller() {
+    io.setRollerVoltage(INTAKE_RUN_VOLTAGE);
+  }
+
+  public void stopRoller() {
+    io.setRollerVoltage(Volts.zero());
+  }
+
+  public AngularVelocity getRollerVelocity() {
+    return inputs.rollerVelocity;
+  }
+
+  public boolean isRollerConnected() {
+    return inputs.rollerConnected;
+  }
+
   public int getStoredGamePieces() {
     return io.getStoredGamePieces();
+  }
+
+  /**
+   * True only when the hopper is counted and holds nothing. Without a fuel sensor (the real robot)
+   * this is never true, so callers must fall back to a timeout.
+   */
+  public boolean isKnownEmpty() {
+    return io.countsGamePieces() && io.getStoredGamePieces() == 0;
   }
 
   public boolean consumeGamePiece() {

@@ -57,13 +57,21 @@ public class IntakeIOSim implements IntakeIO {
   }
 
   @Override
+  public boolean countsGamePieces() {
+    return true;
+  }
+
+  @Override
   public boolean consumeGamePiece() {
     return mapleSimIntake.obtainGamePieceFromIntake();
   }
 
   @Override
   public void addGamePieces(int count) {
-    mapleSimIntake.addGamePiecesToIntake(count);
+    // Not addGamePiecesToIntake: in maple-sim 0.4.0-beta it computes
+    // Math.max(current + count, capacity) instead of Math.min, so ANY preload fills the intake to
+    // capacity (40). setGamePiecesCount clamps correctly. Remove once maple-sim fixes it.
+    mapleSimIntake.setGamePiecesCount(mapleSimIntake.getGamePiecesAmount() + count);
   }
 
   @Override

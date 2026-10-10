@@ -74,6 +74,10 @@ public abstract class RollerSubsystem extends SubsystemBase {
         && MathUtil.isNear(targetVelocity.in(RPM), inputs.velocity.in(RPM), tolerance.in(RPM));
   }
 
+  public boolean isConnected() {
+    return inputs.connected;
+  }
+
   /** True when the roller is being commanded forward (positive setpoint). */
   public boolean isRunningForward() {
     return targetVelocity.gt(RPM.zero());

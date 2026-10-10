@@ -105,6 +105,20 @@ public class Module {
     io.setTurnPosition(Rotation2d.kZero);
   }
 
+  /**
+   * Points the wheel at {@code angle} and drives at {@code speedMetersPerSec} without the
+   * shortest-path optimisation, so a check sees exactly the direction it asked for.
+   */
+  public void runRaw(Rotation2d angle, double speedMetersPerSec) {
+    io.setTurnPosition(angle);
+    io.setDriveVelocity(speedMetersPerSec / constants.WheelRadius);
+  }
+
+  /** Drive motor, steer motor and steer encoder all present. */
+  public boolean isConnected() {
+    return inputs.driveConnected && inputs.turnConnected && inputs.turnEncoderConnected;
+  }
+
   /** Disables all outputs to motors. */
   public void stop() {
     io.setDriveOpenLoop(0.0);

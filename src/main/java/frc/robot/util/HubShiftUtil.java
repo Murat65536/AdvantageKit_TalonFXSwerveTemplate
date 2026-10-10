@@ -13,8 +13,9 @@ import java.util.Optional;
  * in shifts 2 and 4. Shift boundaries by match time remaining: transition (&gt;130 s), shift 1
  * (130-105), shift 2 (105-80), shift 3 (80-55), shift 4 (55-30), endgame (&lt;30, always active).
  *
- * <p>The match time reported to the robot is approximate, so never use this to block shooting; use
- * it for driver feedback only.
+ * <p>The match time reported to the robot is approximate, so {@link #wouldShotCount} only says no
+ * when a shot is clearly wasted: it widens every decision by {@link
+ * #MATCH_TIME_UNCERTAINTY_SECONDS} in the direction of letting the shot go.
  */
 public final class HubShiftUtil {
   private HubShiftUtil() {}
@@ -23,6 +24,20 @@ public final class HubShiftUtil {
   public static final double TRANSITION_END = 130.0;
   public static final double SHIFT_LENGTH = 25.0;
   public static final double ENDGAME_START = 30.0;
+
+  /**
+   * Fuel keeps counting for this long after a hub deactivates (Game Manual TU22 section 6.5:
+   * "Assessment of FUEL scored in the HUB continues for 3 seconds after the HUB deactivates").
+   */
+  public static final double DEACTIVATION_GRACE_SECONDS = 3.0;
+
+  /**
+   * ASSUMPTION, NOT MEASURED. How far {@link DriverStation#getMatchTime()} may be from the field
+   * timer. WPILib only documents the value as "approximate". Measure it at the first practice
+   * match: compare the logged {@code Hub/MatchTime} with the field timer at a shift change, and
+   * replace this with the largest difference seen.
+   */
+  public static final double MATCH_TIME_UNCERTAINTY_SECONDS = 1.0;
 
   public enum Shift {
     TRANSITION,
@@ -89,6 +104,35 @@ public final class HubShiftUtil {
       return true;
     }
     return isHubActive(DriverStation.getMatchTime());
+  }
+
+  /**
+   * Whether fuel released at {@code releaseMatchTime} (teleop time remaining) could score, given it
+   * lands {@code timeOfFlightSeconds} later. It scores if our hub is active when it lands or was
+   * active at most {@link #DEACTIVATION_GRACE_SECONDS} before. The landing time is widened by
+   * {@link #MATCH_TIME_UNCERTAINTY_SECONDS} each way and any possible score counts, so an error in
+   * the match time can waste a shot but never block a good one.
+   *
+   * <p>Checking the two ends of that window is enough: every shift is 25 s long, far longer than
+   * the window, so the window cannot hold an active stretch without one of its ends being in it.
+   */
+  public static boolean wouldShotCount(double releaseMatchTime, double timeOfFlightSeconds) {
+    if (releaseMatchTime < 0) {
+      return true; // No match timer: practice or bench, there is no hub schedule to respect.
+    }
+    double landing = releaseMatchTime - timeOfFlightSeconds;
+    double latestPossibleLanding = landing - MATCH_TIME_UNCERTAINTY_SECONDS;
+    double earliestCountingMoment =
+        landing + MATCH_TIME_UNCERTAINTY_SECONDS + DEACTIVATION_GRACE_SECONDS;
+    return isHubActive(latestPossibleLanding) || isHubActive(earliestCountingMoment);
+  }
+
+  /** {@link #wouldShotCount(double, double)} for a shot released now; true outside teleop. */
+  public static boolean wouldShotCount(double timeOfFlightSeconds) {
+    if (!DriverStation.isTeleopEnabled()) {
+      return true;
+    }
+    return wouldShotCount(DriverStation.getMatchTime(), timeOfFlightSeconds);
   }
 
   /**

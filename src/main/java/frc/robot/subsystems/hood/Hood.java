@@ -10,6 +10,7 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
@@ -31,6 +32,10 @@ public class Hood extends SubsystemBase {
   public void periodic() {
     io.updateInputs(inputs);
     Logger.processInputs("IO/Hood", inputs);
+    if (DriverStation.isDisabled()) {
+      // Hold wherever the hood is, so enabling never moves it on its own.
+      setTargetAngleUntrimmed(inputs.angle);
+    }
     Logger.recordOutput("Subsystems/Hood/ComponentPose", getComponentPose());
     Logger.recordOutput("Subsystems/Hood/TargetAngleDeg", targetAngle.in(Degrees));
     Logger.recordOutput("Subsystems/Hood/TrimDeg", trim.in(Degrees));
@@ -69,6 +74,20 @@ public class Hood extends SubsystemBase {
     return Commands.runOnce(() -> trim = Degrees.zero())
         .ignoringDisable(true)
         .withName("HoodResetTrim");
+  }
+
+  /** Sets the hood target ignoring the driver's trim, so a check tests the real hard stops. */
+  public void setTargetAngleUntrimmed(Angle angle) {
+    targetAngle =
+        Degrees.of(
+            MathUtil.clamp(
+                angle.in(Degrees), MIN_HOOD_ANGLE.in(Degrees), MAX_HOOD_ANGLE.in(Degrees)));
+    io.setTargetAngle(targetAngle);
+  }
+
+  /** Both motors and the absolute encoder. */
+  public boolean isConnected() {
+    return inputs.leftMotorConnected && inputs.rightMotorConnected && inputs.encoderConnected;
   }
 
   public Angle getAngle() {

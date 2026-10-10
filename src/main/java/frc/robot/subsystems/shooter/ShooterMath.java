@@ -170,6 +170,11 @@ public final class ShooterMath {
         inRange);
   }
 
+  /** True when a shot from {@code distanceMeters} is covered by the table (not clamped). */
+  public static boolean isInTableRange(double distanceMeters) {
+    return distanceMeters >= minDistanceMeters && distanceMeters <= maxDistanceMeters;
+  }
+
   private static double clampDistance(double distance) {
     return MathUtil.clamp(distance, minDistanceMeters, maxDistanceMeters);
   }

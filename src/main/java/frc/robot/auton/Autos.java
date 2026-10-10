@@ -5,6 +5,7 @@ import choreo.auto.AutoRoutine;
 import choreo.auto.AutoTrajectory;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
+import frc.robot.commands.DriveCommands;
 import frc.robot.commands.ShootCommands;
 import frc.robot.generated.choreo.ChoreoTraj;
 import frc.robot.subsystems.drive.Drive;
@@ -32,7 +33,21 @@ public class Autos {
    */
   public static final double SHOOT_HUB_EVENT_SECONDS = 3.0;
 
+  /**
+   * Upper bound on one auto volley. A volley normally ends as soon as the hopper is empty; this
+   * only stops a jammed or mis-aimed robot from burning the rest of AUTO. Same measured budget as
+   * {@link #SHOOT_HUB_EVENT_SECONDS} (aim settle + feed) plus 1 s to empty a full hopper.
+   */
+  public static final double VOLLEY_TIMEOUT_SECONDS = 4.0;
+
   private final Drive drive;
+  private final Intake intake;
+  private final Extension extension;
+  private final Hood hood;
+  private final Shooter shooter;
+  private final Kicker kicker;
+  private final Feeder feeder;
+  private final Indexer indexer;
   private final AutoFactory autoFactory;
 
   public Autos(
@@ -45,9 +60,19 @@ public class Autos {
       Feeder feeder,
       Indexer indexer) {
     this.drive = drive;
+    this.intake = intake;
+    this.extension = extension;
+    this.hood = hood;
+    this.shooter = shooter;
+    this.kicker = kicker;
+    this.feeder = feeder;
+    this.indexer = indexer;
     autoFactory =
         new AutoFactory(drive::getPose, drive::setPose, drive::followChoreoSample, true, drive);
-    configureEventBindings(intake, extension, hood, shooter, kicker, feeder, indexer);
+    // Event bindings into autoFactory are registered if an autonomous routine uses event markers
+    // on its trajectory. LeftTrench is composed in code with deadlines, and Test has no markers;
+    // binding non-existent markers causes ChoreoLib to log "Event Markers not found" on startup.
+    // Call configureEventBindings(...) if markers are placed in the Choreo GUI.
   }
 
   /** Returns all top-level generated trajectories available for dashboard selection. */
@@ -79,6 +104,102 @@ public class Autos {
                         drive.holdPose(autoTrajectory.getFinalPose().orElseGet(drive::getPose)))));
 
     return routine.cmd().withName("Auto_" + trajectory.name());
+  }
+
+  /**
+   * Left Trench two-cycle auto: sweep the neutral zone, stop aimed at the hub and shoot, sweep
+   * again, stop aimed at the hub and shoot. Both passes under the trench are centred on its opening
+   * (see {@code TrenchClearanceTest}).
+   */
+  public Command leftTrench() {
+    return trenchAuto("LeftTrench", ChoreoTraj.Left_Trench$0, ChoreoTraj.Left_Trench$1);
+  }
+
+  /**
+   * {@link #leftTrench} mirrored across the field's long axis (y to fieldWidth - y, heading
+   * negated), for when a partner takes the left trench.
+   */
+  public Command rightTrench() {
+    return trenchAuto("RightTrench", ChoreoTraj.Right_Trench$0, ChoreoTraj.Right_Trench$1);
+  }
+
+  /**
+   * Preload-only fallback: start with the rear bumper against the middle of the hub's alliance face
+   * (a repeatable placement by touch, on the ROBOT STARTING LINE), back straight away 1.41 m to put
+   * the shooter 90 in from the hub centre, and shoot all the preloaded fuel. The flywheel spins up
+   * while the robot drives, so feeding starts as soon as it stops.
+   */
+  public Command centerPreload() {
+    AutoRoutine routine = autoFactory.newRoutine("CenterPreload");
+    AutoTrajectory backUp = ChoreoTraj.Center_Preload.asAutoTraj(routine);
+
+    Command drivePlan =
+        Commands.sequence(
+            backUp.resetOdometry(),
+            Commands.runOnce(drive::resetChoreoControllers, drive),
+            backUp.cmd(),
+            volley(),
+            drive.runOnce(drive::stop));
+
+    routine
+        .active()
+        .onTrue(Commands.deadline(drivePlan, ShootCommands.spinUp(drive, shooter, hood, kicker)));
+
+    return routine.cmd().withName("Auto_CenterPreload");
+  }
+
+  /**
+   * Two sweeps with a volley after each. The path is split at the first shooting stop so each half
+   * is its own trajectory; the second half only starts once the first volley has been fired. Intake
+   * runs for each whole sweep so every fuel the path passes over is collected. The flywheel and
+   * hood track the shot for the entire routine, so a volley only waits for the aim to settle.
+   */
+  private Command trenchAuto(String name, ChoreoTraj firstSweep, ChoreoTraj secondSweep) {
+    AutoRoutine routine = autoFactory.newRoutine(name);
+    AutoTrajectory sweep1 = firstSweep.asAutoTraj(routine);
+    AutoTrajectory sweep2 = secondSweep.asAutoTraj(routine);
+
+    Command drivePlan =
+        Commands.sequence(
+            sweep1.resetOdometry(),
+            Commands.runOnce(drive::resetChoreoControllers, drive),
+            Commands.deadline(sweep1.cmd(), extension.extend(), intakeWhileExtended()),
+            volley(),
+            // The volley's creepIn pulls the hopper in and clears fullyExtended, so the intake
+            // stays gated off unless the hopper is pushed back out for the next sweep.
+            Commands.deadline(sweep2.cmd(), extension.extend(), intakeWhileExtended()),
+            volley(),
+            // The aim command leaves its last module setpoints behind when it is cancelled;
+            // without this the robot kept drifting (0.9 m, 45 deg) until the end of AUTO.
+            drive.runOnce(drive::stop));
+
+    routine
+        .active()
+        .onTrue(Commands.deadline(drivePlan, ShootCommands.spinUp(drive, shooter, hood, kicker)));
+
+    return routine.cmd().withName("Auto_" + name);
+  }
+
+  /**
+   * Aim in place and feed until the hopper is empty, capped so a jam can't stall the auto. The real
+   * robot cannot count fuel, so there every volley runs the full timeout. Needs {@link
+   * ShootCommands#spinUp} running alongside it.
+   */
+  private Command volley() {
+    return Commands.deadline(
+            Commands.waitUntil(intake::isKnownEmpty).withTimeout(VOLLEY_TIMEOUT_SECONDS),
+            DriveCommands.joystickDriveAimAtTarget(drive, () -> 0.0, () -> 0.0),
+            ShootCommands.autoFeed(
+                ShootCommands.readyToFeed(drive, shooter, hood),
+                feeder,
+                indexer,
+                intake,
+                extension))
+        .withName("Volley");
+  }
+
+  private Command intakeWhileExtended() {
+    return intake.intake(extension::isFullyExtended);
   }
 
   private void configureEventBindings(

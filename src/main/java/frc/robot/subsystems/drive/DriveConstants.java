@@ -50,11 +50,17 @@ public final class DriveConstants {
   public static final double CHOREO_ROTATION_KP = 7.5;
   public static final double CHOREO_ROTATION_KD = 0.2;
 
+  /**
+   * Bumper-to-bumper width of the square robot. The same 0.443 m half-width is each bumper value in
+   * src/main/deploy/choreo/choreo.chor, so Choreo plans around the same footprint.
+   */
+  public static final double BUMPER_WIDTH_METERS = 0.886;
+
   // MapleSim config
   public static final DriveTrainSimulationConfig mapleSimConfig =
       DriveTrainSimulationConfig.Default()
           .withRobotMass(Kilograms.of(ROBOT_MASS_KG))
-          .withBumperSize(Meters.of(0.886), Meters.of(0.886))
+          .withBumperSize(Meters.of(BUMPER_WIDTH_METERS), Meters.of(BUMPER_WIDTH_METERS))
           .withCustomModuleTranslations(getModuleTranslations())
           .withGyro(COTS.ofPigeon2())
           .withSwerveModule(

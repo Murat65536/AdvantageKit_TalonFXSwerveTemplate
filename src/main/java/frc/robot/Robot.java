@@ -7,9 +7,12 @@
 
 package frc.robot;
 
+import edu.wpi.first.hal.AllianceStationID;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Pose3d;
+import edu.wpi.first.net.WebServer;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Filesystem;
 import edu.wpi.first.wpilibj.IterativeRobotBase;
 import edu.wpi.first.wpilibj.Watchdog;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
@@ -34,7 +37,6 @@ import org.littletonrobotics.junction.wpilog.WPILOGWriter;
  */
 public class Robot extends LoggedRobot {
   private Command autonomousCommand;
-  private Command hubWarningCommand;
   private RobotContainer robotContainer;
 
   public Robot() {
@@ -99,20 +101,35 @@ public class Robot extends LoggedRobot {
     // Init robot container
     robotContainer = new RobotContainer();
 
+    // Serve the deploy folder so Elastic can "Load Layout From Robot" (elastic-layout.json).
+    WebServer.start(5800, Filesystem.getDeployDirectory().getPath());
+
     if (Constants.currentMode == Constants.Mode.SIM) {
       SimulatedArena.getInstance().placeGamePiecesOnField();
       robotContainer.preloadFuel(10);
-      DriverStationSim.setDsAttached(true);
+      configureSimDriverStation();
       DriverStationSim.setAutonomous(false);
       DriverStationSim.setEnabled(true);
       DriverStationSim.notifyNewData();
     }
   }
 
+  /**
+   * Gives the sim a real alliance. The sim HAL starts at alliance station 0 (Unknown), and
+   * ChoreoLib kills every routine started while the alliance is unknown (autos flip for red), so
+   * picking an auto in sim did nothing. The sim GUI's FMS panel can still change this at runtime.
+   */
+  static void configureSimDriverStation() {
+    DriverStationSim.setAllianceStationId(AllianceStationID.Blue1);
+    DriverStationSim.setDsAttached(true);
+    DriverStationSim.notifyNewData();
+  }
+
   /** This function is called periodically during all modes. */
   @Override
   public void robotPeriodic() {
     CommandScheduler.getInstance().run();
+    robotContainer.updateDashboard();
   }
 
   /** This function is called once when the robot is disabled. */
@@ -121,7 +138,9 @@ public class Robot extends LoggedRobot {
 
   /** This function is called periodically when disabled. */
   @Override
-  public void disabledPeriodic() {}
+  public void disabledPeriodic() {
+    robotContainer.checkAutoStartPose();
+  }
 
   /** This autonomous runs the autonomous command selected by your {@link RobotContainer} class. */
   @Override
@@ -147,18 +166,6 @@ public class Robot extends LoggedRobot {
     // this line or comment it out.
     if (autonomousCommand != null) {
       autonomousCommand.cancel();
-    }
-
-    // Track hub shifts for the whole teleop period and warn the drivers before activation.
-    hubWarningCommand = robotContainer.getHubActivationWarningCommand();
-    CommandScheduler.getInstance().schedule(hubWarningCommand);
-  }
-
-  @Override
-  public void teleopExit() {
-    if (hubWarningCommand != null) {
-      hubWarningCommand.cancel();
-      hubWarningCommand = null;
     }
   }
 

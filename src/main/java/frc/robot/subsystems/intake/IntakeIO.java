@@ -20,6 +20,14 @@ public interface IntakeIO {
     return 0;
   }
 
+  /**
+   * Whether {@link #getStoredGamePieces} is a real count. Only the sim counts fuel; the real robot
+   * has no fuel sensor, so its 0 means "unknown", not "empty".
+   */
+  default boolean countsGamePieces() {
+    return false;
+  }
+
   default boolean consumeGamePiece() {
     return false;
   }
