@@ -204,6 +204,59 @@
               "topic": "/SmartDashboard/Systems Check",
               "period": 0.06
             }
+          },
+          {
+            "title": "Hood Angle",
+            "x": 1024.0,
+            "y": 0.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Text Display",
+            "properties": {
+              "topic": "/SmartDashboard/Pit/Hood Angle",
+              "period": 0.06,
+              "data_type": "double",
+              "show_submit_button": false
+            }
+          },
+          {
+            "title": "Hood Jog Steeper",
+            "x": 1024.0,
+            "y": 128.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Command",
+            "properties": {
+              "topic": "/SmartDashboard/Pit/Hood Jog Steeper",
+              "period": 0.06,
+              "show_type": false
+            }
+          },
+          {
+            "title": "Hood Jog Shallower",
+            "x": 1024.0,
+            "y": 256.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Command",
+            "properties": {
+              "topic": "/SmartDashboard/Pit/Hood Jog Shallower",
+              "period": 0.06,
+              "show_type": false
+            }
+          },
+          {
+            "title": "Zero Hood (at steep stop)",
+            "x": 1024.0,
+            "y": 384.0,
+            "width": 256.0,
+            "height": 128.0,
+            "type": "Command",
+            "properties": {
+              "topic": "/SmartDashboard/Pit/Zero Hood",
+              "period": 0.06,
+              "show_type": false
+            }
           }
         ]
       }

@@ -32,6 +32,30 @@ class HoodEncoderTest {
   }
 
   @Test
+  void zeroMakesTheSteepStopReadMaxAndTheTravelFollows() {
+    // Zeroed at a raw 32.39 (the robot's reading on 2026-10-17, before calibration).
+    double zero = 32.39;
+    assertEquals(76.0, rawEncoderToAngle(zero, zero).in(Degrees), EPS);
+    // 26 deg of hood travel toward shallow wraps the raw reading past the period.
+    double shallowRaw = (zero + 26.0) % ENCODER_POSITION_CONVERSION_FACTOR;
+    assertEquals(50.0, rawEncoderToAngle(shallowRaw, zero).in(Degrees), EPS);
+    assertEquals(63.0, rawEncoderToAngle(zero + 13.0, zero).in(Degrees), EPS);
+  }
+
+  @Test
+  void zeroedReadingsPastEitherStopStayContinuous() {
+    double zero = 50.0; // near the end of the period, so both sides wrap
+    double period = ENCODER_POSITION_CONVERSION_FACTOR;
+    assertEquals(80.0, rawEncoderToAngle(zero - 4.0, zero).in(Degrees), EPS);
+    assertEquals(45.0, rawEncoderToAngle((zero + 31.0) % period, zero).in(Degrees), EPS);
+  }
+
+  @Test
+  void unzeroedReadingMatchesTheOldConversion() {
+    assertEquals(43.61, rawEncoderToAngle(32.39, 0.0).in(Degrees), 1e-6);
+  }
+
+  @Test
   void fullTravelMoveDrivesTowardTheTarget() {
     // At 50 deg, asked for 76: the encoder must go down (toward 0), so the error is negative.
     double position = unwrapEncoderPosition(26.0);

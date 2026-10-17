@@ -15,9 +15,11 @@ import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.filter.Debouncer;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.Preferences;
 
 /**
  * Real hardware IO for the hood: two NEO 550s on Spark MAX (right follows left, inverted) and an
@@ -51,6 +53,21 @@ public class HoodIOReal implements HoodIO {
 
   private boolean stallCutoff = false;
 
+  private final Alert notZeroedAlert =
+      new Alert(
+          "Hood encoder not zeroed: jog the hood to its steep stop and press Pit > Zero Hood",
+          AlertType.kError);
+
+  /** Raw reading at the steep hard stop, persisted in Preferences; 0 until first zeroed. */
+  private double encoderZeroDeg = Preferences.getDouble(ENCODER_ZERO_PREF_KEY, 0.0);
+
+  private boolean zeroed = Preferences.containsKey(ENCODER_ZERO_PREF_KEY);
+
+  private double lastRawEncoderDeg = 0.0;
+
+  private boolean jogging = false;
+  private double jogVolts = 0.0;
+
   public HoodIOReal() {
     SparkMaxConfig leftConfig = new SparkMaxConfig();
     leftConfig.idleMode(IdleMode.kBrake).smartCurrentLimit((int) MOTOR_CURRENT_LIMIT.in(Amps));
@@ -76,9 +93,9 @@ public class HoodIOReal implements HoodIO {
     // Unwrapped so the travel is continuous. Do not wrap the error instead: the travel is exactly
     // half the encoder's period, so a full-travel move (50 -> 76) lands on the wrap boundary and
     // drove the hood the wrong way into the 50 deg stop.
-    double encoderPositionDeg = unwrapEncoderPosition(absoluteEncoder.getPosition());
+    lastRawEncoderDeg = absoluteEncoder.getPosition();
     double encoderVelocityDegPerSec = absoluteEncoder.getVelocity();
-    Angle angle = encoderPositionToAngle(encoderPositionDeg);
+    Angle angle = rawEncoderToAngle(lastRawEncoderDeg, encoderZeroDeg);
     double angleDeg = angle.in(Degrees);
     // Encoder increases as the hood retracts, so hood angle velocity is the negative.
     double velocityDegPerSec = -encoderVelocityDegPerSec;
@@ -92,6 +109,11 @@ public class HoodIOReal implements HoodIO {
       setpoint = new TrapezoidProfile.State(angleDeg, 0.0);
       stallCutoff = false;
       stallDebounce.calculate(false);
+    } else if (jogging) {
+      // Open loop for the Pit-tab jog. Track the hood so position control picks up from here,
+      // without a jump, once the jog ends.
+      setpoint = new TrapezoidProfile.State(angleDeg, 0.0);
+      controlVolts = jogVolts;
     } else {
       setpoint = profile.calculate(0.02, setpoint, new TrapezoidProfile.State(goalDeg, 0.0));
       boolean profileDone = setpoint.position == goalDeg && setpoint.velocity == 0.0;
@@ -103,6 +125,8 @@ public class HoodIOReal implements HoodIO {
                 -MAX_CONTROL_VOLTAGE.in(Volts),
                 MAX_CONTROL_VOLTAGE.in(Volts));
       }
+    }
+    if (DriverStation.isEnabled()) {
       boolean stalling =
           currentAmps > HOOD_STALL_CURRENT.in(Amps)
               && Math.abs(velocityDegPerSec) < HOOD_STALL_VELOCITY_DEG_PER_SEC;
@@ -118,6 +142,11 @@ public class HoodIOReal implements HoodIO {
     inputs.appliedVoltage = Volts.of(leftMotor.getAppliedOutput() * leftMotor.getBusVoltage());
     inputs.current = Amps.of(currentAmps);
     inputs.stallCutoff = stallCutoff;
+    inputs.rawEncoderDeg = lastRawEncoderDeg;
+    inputs.encoderZeroDeg = encoderZeroDeg;
+    inputs.zeroed = zeroed;
+    inputs.jogging = jogging;
+    notZeroedAlert.set(!zeroed);
     inputs.temp =
         Celsius.of(Math.max(leftMotor.getMotorTemperature(), rightMotor.getMotorTemperature()));
     inputs.leftMotorConnected = leftMotor.getLastError() == REVLibError.kOk;
@@ -127,6 +156,28 @@ public class HoodIOReal implements HoodIO {
 
     leftMotorDisconnected.set(!inputs.leftMotorConnected);
     rightMotorDisconnected.set(!inputs.rightMotorConnected);
+  }
+
+  @Override
+  public void zeroAtSteepStop() {
+    encoderZeroDeg = lastRawEncoderDeg;
+    Preferences.setDouble(ENCODER_ZERO_PREF_KEY, encoderZeroDeg);
+    zeroed = true;
+    // The hood is now at MAX by definition; restart the profile there so it doesn't slew from the
+    // pre-zero reading back to the target.
+    setpoint = new TrapezoidProfile.State(MAX_HOOD_ANGLE.in(Degrees), 0.0);
+  }
+
+  @Override
+  public void startJog(Voltage volts) {
+    jogVolts = volts.in(Volts);
+    jogging = true;
+  }
+
+  @Override
+  public void stopJog() {
+    jogging = false;
+    jogVolts = 0.0;
   }
 
   @Override

@@ -12,7 +12,7 @@ import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.units.measure.Voltage;
 
 public class ShooterConstants {
-  // Motor config: four Neo Vortex on Spark MAX. Left-top leads.
+  // Motor config: four Neo Vortex on Spark Flex. Left-top leads.
   public static final int LEFT_TOP_MOTOR_CAN_ID = 5;
   public static final int LEFT_BOTTOM_MOTOR_CAN_ID = 3;
   public static final int RIGHT_TOP_MOTOR_CAN_ID = 16;

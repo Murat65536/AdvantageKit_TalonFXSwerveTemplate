@@ -1,10 +1,13 @@
 package frc.robot;
 
+import static edu.wpi.first.units.Units.Degrees;
+
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.commands.SystemsCheck;
+import frc.robot.subsystems.hood.Hood;
 import frc.robot.subsystems.shooter.ShooterMath;
 import frc.robot.util.HubShiftUtil;
 import java.util.List;
@@ -20,12 +23,17 @@ public final class Dashboard {
   public static final String BATTERY = "Battery";
 
   private final Field2d field = new Field2d();
+  private final Hood hood;
 
-  public Dashboard(SystemsCheck systemsCheck) {
+  public Dashboard(SystemsCheck systemsCheck, Hood hood) {
+    this.hood = hood;
     SmartDashboard.putData(MATCH + "Field", field);
     SmartDashboard.putData(PIT + "Run Systems Check", systemsCheck.run());
     SmartDashboard.putData(PIT + "Save Baseline", systemsCheck.saveBaseline());
     SmartDashboard.putString(PIT + "Result", SystemsCheck.Status.NOT_RUN.name());
+    SmartDashboard.putData(PIT + "Zero Hood", hood.zeroAtSteepStop());
+    SmartDashboard.putData(PIT + "Hood Jog Steeper", hood.jogSteeper());
+    SmartDashboard.putData(PIT + "Hood Jog Shallower", hood.jogShallower());
   }
 
   /**
@@ -48,5 +56,6 @@ public final class Dashboard {
     SmartDashboard.putBoolean(MATCH + "In Range", ShooterMath.isInTableRange(distance));
     SmartDashboard.putBoolean(MATCH + "Hub Override", ignoringHubSchedule);
     SmartDashboard.putNumber(BATTERY, RobotController.getBatteryVoltage());
+    SmartDashboard.putNumber(PIT + "Hood Angle", hood.getAngle().in(Degrees));
   }
 }

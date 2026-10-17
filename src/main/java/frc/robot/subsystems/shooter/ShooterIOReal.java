@@ -9,36 +9,37 @@ import com.revrobotics.RelativeEncoder;
 import com.revrobotics.ResetMode;
 import com.revrobotics.spark.SparkBase.ControlType;
 import com.revrobotics.spark.SparkClosedLoopController;
+import com.revrobotics.spark.SparkFlex;
 import com.revrobotics.spark.SparkLowLevel.MotorType;
-import com.revrobotics.spark.SparkMax;
 import com.revrobotics.spark.config.SparkBaseConfig.IdleMode;
-import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.SparkFlexConfig;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 
 /**
- * Real hardware IO for the shooter: four Neo Vortex motors on Spark MAX controllers. Left-top is
+ * Real hardware IO for the shooter: four Neo Vortex motors on Spark Flex controllers. Left-top is
  * the leader; left-bottom follows it, and both right motors follow inverted. Velocity closed-loop
  * runs onboard the leader Spark.
  */
 public class ShooterIOReal implements ShooterIO {
-  private final SparkMax leftTop = new SparkMax(LEFT_TOP_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkMax leftBottom = new SparkMax(LEFT_BOTTOM_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkMax rightTop = new SparkMax(RIGHT_TOP_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkMax rightBottom =
-      new SparkMax(RIGHT_BOTTOM_MOTOR_CAN_ID, MotorType.kBrushless);
-  private final SparkMax[] allMotors = {leftTop, leftBottom, rightTop, rightBottom};
+  private final SparkFlex leftTop = new SparkFlex(LEFT_TOP_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex leftBottom =
+      new SparkFlex(LEFT_BOTTOM_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex rightTop = new SparkFlex(RIGHT_TOP_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex rightBottom =
+      new SparkFlex(RIGHT_BOTTOM_MOTOR_CAN_ID, MotorType.kBrushless);
+  private final SparkFlex[] allMotors = {leftTop, leftBottom, rightTop, rightBottom};
   private final RelativeEncoder encoder = leftTop.getEncoder();
   private final SparkClosedLoopController controller = leftTop.getClosedLoopController();
 
   private final Alert shooterDisconnected =
-      new Alert("Shooter Spark MAX disconnected!", AlertType.kError);
+      new Alert("Shooter Spark Flex disconnected!", AlertType.kError);
   private AngularVelocity velocitySetpoint = RPM.zero();
 
   public ShooterIOReal() {
-    SparkMaxConfig baseConfig = new SparkMaxConfig();
+    SparkFlexConfig baseConfig = new SparkFlexConfig();
     baseConfig
         .idleMode(IdleMode.kCoast)
         .inverted(LEADER_INVERTED)
@@ -51,12 +52,12 @@ public class ShooterIOReal implements ShooterIO {
     baseConfig.encoder.quadratureAverageDepth(5).quadratureMeasurementPeriod(10);
     leftTop.configure(baseConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    SparkMaxConfig leftFollowerConfig = new SparkMaxConfig();
+    SparkFlexConfig leftFollowerConfig = new SparkFlexConfig();
     leftFollowerConfig.apply(baseConfig).follow(leftTop, false);
     leftBottom.configure(
         leftFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    SparkMaxConfig rightFollowerConfig = new SparkMaxConfig();
+    SparkFlexConfig rightFollowerConfig = new SparkFlexConfig();
     rightFollowerConfig.apply(baseConfig).follow(leftTop, true);
     rightTop.configure(
         rightFollowerConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
@@ -69,7 +70,7 @@ public class ShooterIOReal implements ShooterIO {
     double totalCurrent = 0.0;
     double maxTemp = 0.0;
     boolean allConnected = true;
-    for (SparkMax motor : allMotors) {
+    for (SparkFlex motor : allMotors) {
       totalCurrent += motor.getOutputCurrent();
       maxTemp = Math.max(maxTemp, motor.getMotorTemperature());
       allConnected &= motor.getLastError() == REVLibError.kOk;

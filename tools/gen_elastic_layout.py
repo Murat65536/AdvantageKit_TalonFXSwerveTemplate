@@ -80,11 +80,14 @@ match_tab = [
     widget("Alerts", "Alerts", SD + "Alerts", 7, 0, 3, 3),
 ]
 
-# Pit: run the check, read the result.
+# Pit: run the check, read the result; zero the hood after any hood work. Kept within
+# the Match tab's 10 x 4 footprint so it fits a laptop screen.
 #
-#   col  0 1 | 2 3      | 4 5    | 6 7
-#   row0 Run | Baseline | Result | Battery
-#   row1-3   Systems Check (one row per step)
+#   col  0 1 | 2 3      | 4 5    | 6 7     | 8 9
+#   row0 Run | Baseline | Result | Battery | Hood Angle
+#   row1-3   Systems Check (one row per step)  | Jog Steeper
+#   row2                                       | Jog Shallower
+#   row3                                       | Zero Hood
 pit_tab = [
     widget("Run Systems Check", "Command", PIT + "Run Systems Check", 0, 0, 2, 1, show_type=False),
     widget("Save Baseline", "Command", PIT + "Save Baseline", 2, 0, 2, 1, show_type=False),
@@ -94,6 +97,18 @@ pit_tab = [
     ),
     battery(6, 0),
     widget("Systems Check", "Alerts", SD + "Systems Check", 0, 1, 8, 3),
+    widget(
+        "Hood Angle", "Text Display", PIT + "Hood Angle", 8, 0, 2, 1,
+        data_type="double", show_submit_button=False,
+    ),
+    widget("Hood Jog Steeper", "Command", PIT + "Hood Jog Steeper", 8, 1, 2, 1, show_type=False),
+    widget(
+        "Hood Jog Shallower", "Command", PIT + "Hood Jog Shallower", 8, 2, 2, 1, show_type=False,
+    ),
+    widget(
+        "Zero Hood (at steep stop)", "Command", PIT + "Zero Hood", 8, 3, 2, 1,
+        show_type=False,
+    ),
 ]
 
 layout = {

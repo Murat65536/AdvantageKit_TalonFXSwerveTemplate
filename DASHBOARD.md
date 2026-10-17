@@ -63,3 +63,16 @@ WARN compares each step against your robot's own healthy times. Set it once:
 3. Save a new baseline after any mechanical change that makes something faster or slower, such as a gearbox swap, a new belt, or new wheels.
 
 It won't save from a run that had a FAIL or was cut short.
+
+## Zeroing the hood (Pit tab)
+
+Do this once per roboRIO. Do it again whenever the hood, its encoder, or its encoder gear has been taken apart or re-meshed. Until the hood is zeroed, the Alerts list shows "Hood encoder not zeroed". The hood still works, but its angles can be wrong, so it can aim badly or drive into a hard stop.
+
+1. Enable in **Teleop**, not on the field. The jog buttons and Zero Hood refuse to run while connected to FMS.
+2. Press **Hood Jog Steeper**. Each press drives the hood slowly for 0.2 s, then stops. Keep pressing until it rests against the steep hard stop (fully retracted, the steepest launch angle).
+3. Press **Zero Hood**. **Hood Angle** should now read 76. You don't need to disable: the hood holds still at the new reading.
+4. Jog **shallower** to the other hard stop. **Hood Angle** should read about 50. If it reads something else, the hood's travel doesn't match the code (50–76°), so don't use the hood until it's been looked at.
+
+If a press doesn't move the hood at all, or moves it more than a few degrees, change `HOOD_JOG_VOLTAGE` in `HoodConstants`.
+
+The zero is stored in roboRIO Preferences (`Hood/EncoderZeroDeg`), so it survives reboots and deploys. The zero offset you'd set in REV Hardware Client doesn't stick: the robot code resets the Spark's settings on every boot.

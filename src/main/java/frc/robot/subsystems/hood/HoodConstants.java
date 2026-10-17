@@ -49,6 +49,19 @@ public class HoodConstants {
     return MAX_HOOD_ANGLE.minus(Degrees.of(encoderPositionDeg));
   }
 
+  /**
+   * roboRIO Preferences key holding the raw encoder reading at the steep (fully retracted, {@link
+   * #MAX_HOOD_ANGLE}) hard stop. Set with the Pit tab's "Zero Hood" button. It lives in code, not
+   * on the Spark, because the Spark is configured with kResetSafeParameters on every boot, which
+   * wipes a zero offset set in REV Hardware Client.
+   */
+  public static final String ENCODER_ZERO_PREF_KEY = "Hood/EncoderZeroDeg";
+
+  /** Raw encoder reading to hood angle, given the raw reading at the steep hard stop. */
+  public static Angle rawEncoderToAngle(double rawEncoderDeg, double zeroRawEncoderDeg) {
+    return encoderPositionToAngle(unwrapEncoderPosition(rawEncoderDeg - zeroRawEncoderDeg));
+  }
+
   public static final Translation3d HOOD_PIVOT_TRANSLATION = new Translation3d(0.0, 0.0, 0.0);
 
   // Closed-loop tuning (0.05 duty cycle per degree from the previous robot code, scaled to 12 V)
@@ -73,6 +86,15 @@ public class HoodConstants {
 
   public static final double HOOD_STALL_VELOCITY_DEG_PER_SEC = 5.0;
   public static final double HOOD_STALL_TIME_SECONDS = 0.3;
+
+  /**
+   * Pit-tab jog for zeroing: each press drives the hood open loop at this voltage for {@link
+   * #HOOD_JOG_SECONDS}. Negative volts move it steeper. NOT MEASURED: if a press does not move the
+   * hood, raise the voltage a little; if one press moves it more than a few degrees, lower it.
+   */
+  public static final Voltage HOOD_JOG_VOLTAGE = Volts.of(1.5);
+
+  public static final double HOOD_JOG_SECONDS = 0.2;
 
   /** Per-press manual trim applied on top of the calculated launch angle. */
   public static final Angle TRIM_STEP = Degrees.of(0.5);

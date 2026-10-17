@@ -293,7 +293,8 @@ public class RobotContainer {
                 kicker,
                 shooter,
                 hood,
-                extension));
+                extension),
+            hood);
 
     // Configure the button bindings
     configureBindings();

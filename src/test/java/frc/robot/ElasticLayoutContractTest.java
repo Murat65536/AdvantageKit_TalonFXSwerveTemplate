@@ -14,6 +14,8 @@ import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import frc.robot.commands.SystemsCheck;
+import frc.robot.subsystems.hood.Hood;
+import frc.robot.subsystems.hood.HoodIO;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,7 +37,8 @@ class ElasticLayoutContractTest {
     NetworkTableInstance nt = NetworkTableInstance.getDefault();
 
     // What the robot publishes: the Dashboard, the auto chooser, and the two alert groups.
-    Dashboard dashboard = new Dashboard(new SystemsCheck(new SystemsCheck.MemoryStore()));
+    Dashboard dashboard =
+        new Dashboard(new SystemsCheck(new SystemsCheck.MemoryStore()), new Hood(new HoodIO() {}));
     dashboard.update(Pose2d.kZero, Optional.empty(), true, false);
     SmartDashboard.putData("Auto Choices", new SendableChooser<String>());
     new Alert("placeholder", AlertType.kInfo).set(true);

@@ -10,6 +10,7 @@ import edu.wpi.first.math.geometry.Pose3d;
 import edu.wpi.first.math.geometry.Rotation3d;
 import edu.wpi.first.math.geometry.Transform3d;
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.Voltage;
 import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -74,6 +75,51 @@ public class Hood extends SubsystemBase {
     return Commands.runOnce(() -> trim = Degrees.zero())
         .ignoringDisable(true)
         .withName("HoodResetTrim");
+  }
+
+  /**
+   * Zero the hood encoder: with the hood against its steep (fully retracted) hard stop, run this.
+   * That position then reads {@link HoodConstants#MAX_HOOD_ANGLE}, and the zero is kept across
+   * reboots and deploys. Works enabled or disabled: the target moves to the new reading in the same
+   * step, so the hood holds still instead of chasing its old target. Refuses to run on the field.
+   */
+  public Command zeroAtSteepStop() {
+    return Commands.runOnce(
+            () -> {
+              io.zeroAtSteepStop();
+              setTargetAngleUntrimmed(MAX_HOOD_ANGLE);
+            })
+        .onlyIf(() -> !DriverStation.isFMSAttached())
+        .ignoringDisable(true)
+        .withName("HoodZeroAtSteepStop");
+  }
+
+  /** One short, slow nudge toward the steep stop (see {@link #jog}). */
+  public Command jogSteeper() {
+    return jog(HOOD_JOG_VOLTAGE.unaryMinus()).withName("HoodJogSteeper");
+  }
+
+  /** One short, slow nudge toward the shallow stop (see {@link #jog}). */
+  public Command jogShallower() {
+    return jog(HOOD_JOG_VOLTAGE).withName("HoodJogShallower");
+  }
+
+  /**
+   * Drive the hood open loop at {@code volts} for {@link HoodConstants#HOOD_JOG_SECONDS}, for
+   * zeroing from the Pit tab. Works before the hood is zeroed; the stall cutoff still applies.
+   * Needs the robot enabled, and refuses to run on the field. Afterwards the hood holds where it
+   * stopped.
+   */
+  private Command jog(Voltage volts) {
+    return Commands.startEnd(
+            () -> io.startJog(volts),
+            () -> {
+              io.stopJog();
+              setTargetAngleUntrimmed(inputs.angle);
+            },
+            this)
+        .withTimeout(HOOD_JOG_SECONDS)
+        .onlyIf(() -> !DriverStation.isFMSAttached());
   }
 
   /** Sets the hood target ignoring the driver's trim, so a check tests the real hard stops. */
