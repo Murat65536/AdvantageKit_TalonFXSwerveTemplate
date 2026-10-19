@@ -21,7 +21,7 @@ public class Hood extends SubsystemBase {
   private final HoodIO io;
   private final HoodIOInputsAutoLogged inputs = new HoodIOInputsAutoLogged();
 
-  private Angle targetAngle = MIN_HOOD_ANGLE;
+  private Angle targetAngle = HOOD_SOFT_MIN_ANGLE;
   /** Operator trim added to every requested angle, so shots can be nudged live. */
   private Angle trim = Degrees.zero();
 
@@ -45,14 +45,11 @@ public class Hood extends SubsystemBase {
         getCurrentCommand() == null ? "none" : getCurrentCommand().getName());
   }
 
-  /** Sets the hood target (trim is applied on top), clamped to the mechanical limits. */
+  /**
+   * Sets the hood target (trim is applied on top), clamped to the soft minimum and the steep stop.
+   */
   public void setTargetAngle(Angle angle) {
-    targetAngle =
-        Degrees.of(
-            MathUtil.clamp(
-                angle.plus(trim).in(Degrees),
-                MIN_HOOD_ANGLE.in(Degrees),
-                MAX_HOOD_ANGLE.in(Degrees)));
+    targetAngle = Degrees.of(clampTargetDeg(angle.plus(trim).in(Degrees)));
     io.setTargetAngle(targetAngle);
   }
 
@@ -122,12 +119,9 @@ public class Hood extends SubsystemBase {
         .onlyIf(() -> !DriverStation.isFMSAttached());
   }
 
-  /** Sets the hood target ignoring the driver's trim, so a check tests the real hard stops. */
+  /** Sets the hood target ignoring the driver's trim, so a check tests the real limits. */
   public void setTargetAngleUntrimmed(Angle angle) {
-    targetAngle =
-        Degrees.of(
-            MathUtil.clamp(
-                angle.in(Degrees), MIN_HOOD_ANGLE.in(Degrees), MAX_HOOD_ANGLE.in(Degrees)));
+    targetAngle = Degrees.of(clampTargetDeg(angle.in(Degrees)));
     io.setTargetAngle(targetAngle);
   }
 

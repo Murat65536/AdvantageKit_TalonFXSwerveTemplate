@@ -17,9 +17,32 @@ public class HoodConstants {
 
   // Geometry and limits. Launch angle is measured from horizontal; a fully retracted hood gives
   // the highest (steepest) launch angle.
-  public static final Angle MIN_HOOD_ANGLE = Degrees.of(50); // no retraction
+  // MIN/MAX are the physical hard stops and set the encoder geometry. Never command MIN: driving
+  // the hood to the shallow stop breaks it. Targets are clamped to HOOD_SOFT_MIN_ANGLE instead.
+  public static final Angle MIN_HOOD_ANGLE = Degrees.of(50); // no retraction (physical stop)
   public static final Angle MAX_HOOD_ANGLE = Degrees.of(76); // full retraction
   public static final Angle HOOD_ANGLE_TOLERANCE = Degrees.of(0.75);
+
+  /**
+   * Shallowest angle the hood is ever sent to: shots, trim, the systems check and (once zeroed) the
+   * Pit-tab jog. Going all the way to the 50 deg stop breaks the hood mechanically. Shot-table
+   * entries shallower than this (240 in at 53.5, 250 in at 54.5) are clamped to it.
+   */
+  public static final Angle HOOD_SOFT_MIN_ANGLE = Degrees.of(55);
+
+  /** Clamp a requested hood angle to what may be commanded: soft minimum to the steep stop. */
+  public static double clampTargetDeg(double angleDeg) {
+    return MathUtil.clamp(angleDeg, HOOD_SOFT_MIN_ANGLE.in(Degrees), MAX_HOOD_ANGLE.in(Degrees));
+  }
+
+  /**
+   * Whether a jog at {@code jogVolts} (positive is shallower) may keep driving at {@code angleDeg}.
+   * A zeroed hood stops jogging shallower at the soft minimum. An unzeroed hood's angle can't be
+   * trusted, so the jog is left to the person watching it.
+   */
+  public static boolean jogAllowed(double jogVolts, double angleDeg, boolean zeroed) {
+    return !(zeroed && jogVolts > 0.0 && angleDeg <= HOOD_SOFT_MIN_ANGLE.in(Degrees));
+  }
 
   /**
    * The absolute encoder is inverted and geared so one encoder revolution spans twice the hood's

@@ -157,6 +157,42 @@ class HoodPitCommandsTest {
   }
 
   @Test
+  void targetsNeverGoBelowTheSoftMinimum() {
+    hood.setTargetAngle(MIN_HOOD_ANGLE);
+    assertEquals(HOOD_SOFT_MIN_ANGLE.in(Degrees), io.lastTarget.in(Degrees), 1e-9);
+    hood.setTargetAngleUntrimmed(Degrees.of(40.0));
+    assertEquals(HOOD_SOFT_MIN_ANGLE.in(Degrees), io.lastTarget.in(Degrees), 1e-9);
+  }
+
+  @Test
+  void trimCannotPushPastTheSoftMinimum() {
+    setEnabled(false, false);
+    for (int i = 0; i < 20; i++) {
+      CommandScheduler.getInstance().schedule(hood.adjustTrim(Degrees.of(-0.5)));
+      tick();
+    }
+    hood.setTargetAngle(HOOD_SOFT_MIN_ANGLE);
+    assertEquals(HOOD_SOFT_MIN_ANGLE.in(Degrees), io.lastTarget.in(Degrees), 1e-9);
+  }
+
+  @Test
+  void softMinimumLeavesMarginFromTheHardStop() {
+    assertTrue(HOOD_SOFT_MIN_ANGLE.in(Degrees) > MIN_HOOD_ANGLE.in(Degrees));
+    assertTrue(HOOD_SOFT_MIN_ANGLE.in(Degrees) < MAX_HOOD_ANGLE.in(Degrees));
+  }
+
+  @Test
+  void zeroedJogStopsShallowerAtTheSoftMinimumOnly() {
+    double soft = HOOD_SOFT_MIN_ANGLE.in(Degrees);
+    assertTrue(jogAllowed(1.5, soft + 1.0, true), "shallower, above the limit");
+    assertFalse(jogAllowed(1.5, soft, true), "shallower, at the limit");
+    assertFalse(jogAllowed(1.5, soft - 2.0, true), "shallower, past the limit");
+    assertTrue(jogAllowed(-1.5, soft - 2.0, true), "steeper always backs away from it");
+    // Unzeroed, the angle means nothing; the person jogging decides.
+    assertTrue(jogAllowed(1.5, soft - 2.0, false));
+  }
+
+  @Test
   void jogVoltageIsGentle() {
     assertTrue(HOOD_JOG_VOLTAGE.in(Volts) > 0.0);
     assertFalse(HOOD_JOG_VOLTAGE.in(Volts) > 3.0, "a jog is for creeping into a hard stop");

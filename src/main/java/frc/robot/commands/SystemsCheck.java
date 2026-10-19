@@ -268,10 +268,12 @@ public final class SystemsCheck {
     return this;
   }
 
-  /** Drive the hood to each end of its travel. */
+  /** Drive the hood to each end of the range it is allowed to use. */
   public SystemsCheck addHood(Hood hood) {
     requirements.add(hood);
-    for (Angle target : new Angle[] {HoodConstants.MIN_HOOD_ANGLE, HoodConstants.MAX_HOOD_ANGLE}) {
+    // The soft minimum, not the 50 deg stop: driving into the shallow stop breaks the hood.
+    for (Angle target :
+        new Angle[] {HoodConstants.HOOD_SOFT_MIN_ANGLE, HoodConstants.MAX_HOOD_ANGLE}) {
       String name = String.format("Hood to %.0f deg", target.in(Degrees));
       addStep(
           name,

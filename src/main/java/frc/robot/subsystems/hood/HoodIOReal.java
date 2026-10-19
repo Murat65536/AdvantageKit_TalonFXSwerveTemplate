@@ -47,7 +47,7 @@ public class HoodIOReal implements HoodIO {
   private final Debouncer stallDebounce =
       new Debouncer(HOOD_STALL_TIME_SECONDS, Debouncer.DebounceType.kRising);
 
-  private Angle targetAngle = MIN_HOOD_ANGLE;
+  private Angle targetAngle = HOOD_SOFT_MIN_ANGLE;
   /** Profiled setpoint in hood degrees; the P loop tracks this, not the raw target. */
   private TrapezoidProfile.State setpoint = new TrapezoidProfile.State();
 
@@ -113,7 +113,7 @@ public class HoodIOReal implements HoodIO {
       // Open loop for the Pit-tab jog. Track the hood so position control picks up from here,
       // without a jump, once the jog ends.
       setpoint = new TrapezoidProfile.State(angleDeg, 0.0);
-      controlVolts = jogVolts;
+      controlVolts = jogAllowed(jogVolts, angleDeg, zeroed) ? jogVolts : 0.0;
     } else {
       setpoint = profile.calculate(0.02, setpoint, new TrapezoidProfile.State(goalDeg, 0.0));
       boolean profileDone = setpoint.position == goalDeg && setpoint.velocity == 0.0;
@@ -182,9 +182,6 @@ public class HoodIOReal implements HoodIO {
 
   @Override
   public void setTargetAngle(Angle angle) {
-    targetAngle =
-        Degrees.of(
-            MathUtil.clamp(
-                angle.in(Degrees), MIN_HOOD_ANGLE.in(Degrees), MAX_HOOD_ANGLE.in(Degrees)));
+    targetAngle = Degrees.of(clampTargetDeg(angle.in(Degrees)));
   }
 }

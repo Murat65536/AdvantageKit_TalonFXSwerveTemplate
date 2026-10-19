@@ -187,11 +187,12 @@ class SystemsCheckTest {
   }
 
   @Test
-  void hoodReachesBothEnds() {
+  void hoodReachesBothEndsOfItsAllowedRange() {
     SystemsCheck check = new SystemsCheck(baseline);
     check.addHood(new Hood(new HoodIOSim()));
     runToCompletion(check.run());
-    for (String name : new String[] {"Hood to 50 deg", "Hood to 76 deg"}) {
+    // 55, the soft minimum: the 50 deg stop must never be commanded.
+    for (String name : new String[] {"Hood to 55 deg", "Hood to 76 deg"}) {
       assertEquals(Status.PASS, check.results().get(name).status(), name);
     }
   }

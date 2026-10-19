@@ -51,7 +51,7 @@ Every step appears in the Systems Check list:
 - **Swerve drive:** each wheel spins at 0.24 m/s forward, then reverse, and the encoder has to agree with the direction.
 - **Intake, indexer, feeder, kicker:** each reaches 90% of its normal speed.
 - **Shooter:** spins up to the 150 in shot speed.
-- **Hood:** moves to 50° and to 76°. The driver's trim is ignored.
+- **Hood:** moves to 55° (the soft limit; the 50° hard stop breaks the hood) and to 76°. The driver's trim is ignored.
 - **Extension:** pushes out (the limit switch must release), then pulls in (the limit switch must press).
 
 ### Baseline
@@ -71,7 +71,7 @@ Do this once per roboRIO. Do it again whenever the hood, its encoder, or its enc
 1. Enable in **Teleop**, not on the field. The jog buttons and Zero Hood refuse to run while connected to FMS.
 2. Press **Hood Jog Steeper**. Each press drives the hood slowly for 0.2 s, then stops. Keep pressing until it rests against the steep hard stop (fully retracted, the steepest launch angle).
 3. Press **Zero Hood**. **Hood Angle** should now read 76. You don't need to disable: the hood holds still at the new reading.
-4. Jog **shallower** to the other hard stop. **Hood Angle** should read about 50. If it reads something else, the hood's travel doesn't match the code (50–76°), so don't use the hood until it's been looked at.
+4. Jog **shallower** until the hood stops on its own at about **55**. That's the soft limit: the hood is never sent past 55° because driving it to the 50° hard stop breaks it. Look at the hood: there should still be a gap of a few degrees before the shallow hard stop. If it's touching the stop, or the gap looks much bigger than about 5°, the hood's travel doesn't match the code (50–76°), so don't use the hood until it's been looked at.
 
 If a press doesn't move the hood at all, or moves it more than a few degrees, change `HOOD_JOG_VOLTAGE` in `HoodConstants`.
 

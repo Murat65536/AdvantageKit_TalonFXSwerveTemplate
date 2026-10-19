@@ -8,8 +8,8 @@ import edu.wpi.first.units.measure.Angle;
 
 /** Simulated IO for hood angle control. */
 public class HoodIOSim implements HoodIO {
-  private Angle targetAngle = MIN_HOOD_ANGLE;
-  private double currentAngleDeg = MIN_HOOD_ANGLE.in(Degrees);
+  private Angle targetAngle = HOOD_SOFT_MIN_ANGLE;
+  private double currentAngleDeg = HOOD_SOFT_MIN_ANGLE.in(Degrees);
   private double currentVelocityDegPerSec = 0.0;
   private double appliedVolts = 0.0;
 
@@ -41,9 +41,6 @@ public class HoodIOSim implements HoodIO {
 
   @Override
   public void setTargetAngle(Angle angle) {
-    targetAngle =
-        Degrees.of(
-            MathUtil.clamp(
-                angle.in(Degrees), MIN_HOOD_ANGLE.in(Degrees), MAX_HOOD_ANGLE.in(Degrees)));
+    targetAngle = Degrees.of(clampTargetDeg(angle.in(Degrees)));
   }
 }
