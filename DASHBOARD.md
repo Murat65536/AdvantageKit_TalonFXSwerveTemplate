@@ -62,7 +62,7 @@ Both PhotonVision camera streams, with the AprilTag overlay. They come straight 
 | Left Trench (2 volleys) | Under the left trench, facing the neutral zone | Two sweeps with a volley after each | 48–68 |
 | Right Trench (2 volleys) | Left Trench mirrored to the right trench | Same as Left Trench | 62–74 |
 | Center Preload (8 fuel) | Rear bumper against the middle of your hub's alliance-side face | Backs up 1.41 m and shoots all 8 fuel | 8/8 |
-| Center Depot (preload + depot) | Same as Center Preload | Drives to the tower end of the depot, sweeps along it next to the wall, leaves past the far end, then shoots the preload and the depot fuel from beside the hub. Not yet run on the robot: watch the tower on the way in | Not measured: the sim robot clips its tower model on the way in |
+| Left Bump Depot (preload + depot) | Rear bumper against the left bump, facing your alliance wall | Drives to the tower end of the depot, sweeps along it next to the wall, leaves past the far end, then shoots the preload and the depot fuel from beside the hub. Not yet run on the robot: watch the tower on the way in | Not measured: the sim robot clips its tower model on the way in |
 
 ## Pit systems check (Pit tab)
 

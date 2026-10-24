@@ -245,7 +245,7 @@ public class RobotContainer {
         autos.centerPreload(),
         ChoreoTraj.Center_Preload.initialPoseBlue());
     addAuto(
-        "Center Depot (preload + depot)",
+        "Left Bump Depot (preload + depot)",
         autos.centerDepot(),
         ChoreoTraj.Center_Depot.initialPoseBlue());
     for (ChoreoTraj trajectory : autos.getAvailableTrajectories()) {

@@ -155,13 +155,12 @@ public class Autos {
   }
 
   /**
-   * Preload plus the depot: start in the same spot as {@link #centerPreload} (rear bumper against
-   * the middle of the hub's alliance face), drive to the tower end of the depot, sweep up along the
-   * wall intake-first at 1.5 m/s, then leave past the far end and stop to the left of the hub with
-   * the shooter facing it and shoot the preload and everything collected in one volley. The preload
-   * rides along because the start is closer to the hub than the shot table covers. The depot is
-   * swept from the side because entering it head-on caused problems on the robot, and the robot
-   * leaves past the far end so it doesn't cross the depot again.
+   * Preload plus the depot: start under the left trench, in the same spot as {@link #leftTrench}
+   * but facing the alliance wall, drive out from under it, then to the tower end of the depot,
+   * sweep up along the wall intake-first at 1.5 m/s, then leave past the far end and stop to the
+   * left of the hub with the shooter facing it and shoot the preload and everything collected in
+   * one volley. The depot is swept from the side because entering it head-on caused problems on the
+   * robot, and the robot leaves past the far end so it doesn't cross the depot again.
    *
    * <p>Not yet run on the robot. In maple-sim the robot clips the tower on the way to the depot
    * (see {@code AutoScoringDepotHarness}), so watch that spot on the first run.
