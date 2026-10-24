@@ -383,19 +383,13 @@ public class RobotContainer {
     operator.a().onTrue(extension.extend());
     operator.y().onTrue(extension.retract());
 
-    // Right trigger: feed while held. Automatic mode feeds only once the shot is ready (the driver
-    // must be holding left trigger to aim and spin up). Manual mode spins the flywheel at the
-    // manual speed instead; feed with B.
+    // Right trigger: feed while held. Automatic mode feeds whenever the operator holds it, with no
+    // readiness gate; the driver's left trigger aims and spins up. Manual mode spins the flywheel
+    // at the manual speed instead; feed with B.
     operator
         .rightTrigger()
         .and(automaticMode)
-        .whileTrue(
-            ShootCommands.autoFeed(
-                ShootCommands.readyToFeed(drive, shooter, hood),
-                feeder,
-                indexer,
-                intake,
-                extension));
+        .whileTrue(ShootCommands.autoFeed(() -> true, feeder, indexer, intake, extension));
     operator.rightTrigger().and(manualMode).whileTrue(manualShot.spinShooter(shooter, kicker));
 
     // Manual mode only: X runs the kicker, B runs the feeder and indexer, while held

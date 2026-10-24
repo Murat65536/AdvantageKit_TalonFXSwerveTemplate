@@ -28,7 +28,7 @@ Two Xbox controllers, the same layout as the 2026RobotProject. The **driver** is
 
 | Button | Automatic mode | Manual mode |
 |---|---|---|
-| Right trigger (hold) | Feed the shot. Fuel only goes once it's ready: the driver is holding left trigger, the robot is aimed, the flywheel and hood are on target, and your hub will count it. | Spin the flywheel at the manual RPM (with the kicker). Feed with B. |
+| Right trigger (hold) | Feed, straight away, with no checks. The flywheel only spins while the driver holds left trigger, so wait about 2 s after the driver starts aiming. | Spin the flywheel at the manual RPM (with the kicker). Feed with B. |
 | Right bumper / left bumper (hold) | Intake (once the hopper is out) / outtake | Same |
 | A / Y | Hopper out / in | Same |
 | X (hold) | | Kicker |

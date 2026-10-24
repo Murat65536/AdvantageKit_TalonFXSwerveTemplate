@@ -87,9 +87,13 @@ public final class ShootCommands {
   }
 
   /**
-   * The feed gate: flywheel and hood at setpoint, a shot solution exists, the drive is aimed, and
-   * the fuel would land while our hub counts it. Needs {@link #spinUp} (or {@link #shootAtTarget})
-   * running, which supplies the solution.
+   * The feed gate: hood at setpoint, a shot solution exists, the drive is aimed, and the fuel would
+   * land while our hub counts it. Needs {@link #spinUp} (or {@link #shootAtTarget}) running, which
+   * supplies the solution.
+   *
+   * <p>The flywheel speed is logged but not gated on, like the kicker: every shot dips it below the
+   * setpoint band, and on the robot it stayed low enough after the first shot that the rest of the
+   * hopper never fed.
    */
   public static BooleanSupplier readyToFeed(
       Drive drive, Shooter shooter, Hood hood, BooleanSupplier ignoreHubSchedule) {
@@ -108,7 +112,7 @@ public final class ShootCommands {
       Logger.recordOutput("Hub/MatchTime", DriverStation.getMatchTime());
       Logger.recordOutput(
           "Shoot/AimErrorDeg", Math.toDegrees(ShooterMath.getAimErrorRad(drive.getPose())));
-      return flywheelReady && hoodReady && aimed && solved && hubCounts;
+      return hoodReady && aimed && solved && hubCounts;
     };
   }
 
