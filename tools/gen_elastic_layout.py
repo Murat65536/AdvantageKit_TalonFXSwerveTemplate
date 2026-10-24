@@ -23,7 +23,7 @@ GRID = 128
 PERIOD = 0.06  # Elastic's default update period
 ROBOT_WIDTH_M = 0.886  # DriveConstants.BUMPER_WIDTH_METERS
 
-GREEN, RED, GREY, ORANGE = 0xFF4CAF50, 0xFFF44336, 0xFF424242, 0xFFFF9800
+GREEN, RED = 0xFF4CAF50, 0xFFF44336
 
 SD = "/SmartDashboard/"
 MATCH = SD + "Match/"
@@ -58,13 +58,15 @@ def battery(col, row):
 
 
 # Match: only what is worth a glance. Before the match: auto, placement, battery.
-# During it: is the hub scoring, can I shoot from here, is the override on, did
-# anything disconnect. Match time and FMS state are already on the Driver Station.
+# During it: is the hub scoring, can I shoot from here, did anything disconnect, and
+# manual mode (operator-set shot, from the 2026RobotProject). Match time and FMS state
+# are already on the Driver Station.
 #
-#   col  0 1 2 3 | 4 5 | 6 | 7 8 9
-#   row0 Auto    | Start Pose OK | Batt. | Alerts
-#   row1 Field   | Hub Active    |       |
-#   row2         | In Range | Override   |
+#   col  0 1 2 3     | 4 5 6         | 7 8 9
+#   row0 Auto        | Start Pose OK | Batt. | Alerts
+#   row1 Field       | Hub Active    |       |
+#   row2             | In Range      |       |
+#   row3 Manual Mode | Manual RPM | Manual Hood | Retract Delay (s) | Shot RPM Offset
 match_tab = [
     widget("Auto", "ComboBox Chooser", SD + "Auto Choices", 0, 0, 3, 1, sort_options=False),
     light("Start Pose OK", MATCH + "Start Pose OK", 3, 0),
@@ -75,9 +77,29 @@ match_tab = [
         show_other_objects=True, show_trajectories=False,
     ),
     light("Hub Active", MATCH + "Hub Active", 4, 1, w=3),
-    light("In Range", MATCH + "In Range", 4, 2),
-    light("Override", MATCH + "Hub Override", 6, 2, w=1, on=ORANGE, off=GREY),
+    light("In Range", MATCH + "In Range", 4, 2, w=3),
     widget("Alerts", "Alerts", SD + "Alerts", 7, 0, 3, 3),
+    widget(
+        "Manual Mode", "Toggle Switch", MATCH + "Manual Mode", 0, 3, 2, 1, data_type="boolean",
+    ),
+    widget(
+        "Manual RPM", "Text Display", MATCH + "Manual RPM", 2, 3, 2, 1,
+        data_type="double", show_submit_button=False,
+    ),
+    widget(
+        "Manual Hood", "Text Display", MATCH + "Manual Hood", 4, 3, 2, 1,
+        data_type="double", show_submit_button=False,
+    ),
+    # Editable: seconds to wait after feeding starts before the hopper pulls in.
+    widget(
+        "Retract Delay (s)", "Text Display", MATCH + "Retract Delay", 6, 3, 2, 1,
+        data_type="double", show_submit_button=True,
+    ),
+    # Editable: RPM added to every automatic shot (+ farther, - shorter), for field tuning.
+    widget(
+        "Shot RPM Offset", "Text Display", MATCH + "Shot RPM Offset", 8, 3, 2, 1,
+        data_type="double", show_submit_button=True,
+    ),
 ]
 
 # Pit: run the check, read the result; zero the hood after any hood work. Kept within
@@ -111,12 +133,31 @@ pit_tab = [
     ),
 ]
 
+# Cameras: both PhotonVision streams, as the 2026RobotProject's Drive Team tab showed them.
+# PhotonVision (on the coprocessor) publishes these, not the robot code. Port 1182 is the first
+# camera configured in PhotonVision and 1184 the second; the "Output" stream has the AprilTag
+# overlay. If a stream stays blank, right-click it in Elastic and pick the right one.
+CAMERA_PUBLISHER = "/CameraPublisher/"
+cameras_tab = [
+    widget(
+        "Camera 1", "Camera Stream",
+        CAMERA_PUBLISHER + "photonvision_Port_1182_Output_MJPEG_Server", 0, 0, 5, 4,
+        rotation_turns=0,
+    ),
+    widget(
+        "Camera 2", "Camera Stream",
+        CAMERA_PUBLISHER + "photonvision_Port_1184_Output_MJPEG_Server", 5, 0, 5, 4,
+        rotation_turns=0,
+    ),
+]
+
 layout = {
     "version": 1.0,
     "grid_size": GRID,
     "tabs": [
         {"name": "Match", "grid_layout": {"layouts": [], "containers": match_tab}},
         {"name": "Pit", "grid_layout": {"layouts": [], "containers": pit_tab}},
+        {"name": "Cameras", "grid_layout": {"layouts": [], "containers": cameras_tab}},
     ],
 }
 

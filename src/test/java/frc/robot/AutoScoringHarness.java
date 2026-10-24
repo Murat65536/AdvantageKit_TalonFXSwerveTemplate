@@ -103,6 +103,21 @@ class AutoScoringHarness {
    */
   static Result run(
       String label, Alliance alliance, Function<Autos, Command> autoFactory, String trajectory) {
+    return run(label, alliance, autoFactory, trajectory, false);
+  }
+
+  /**
+   * @param stockBothDepots turn off maple-sim's efficiency mode, which stocks only the depot at the
+   *     far end of the field from the robot's alliance (maple-sim 0.4.0-beta has the depots
+   *     swapped) and only every third row of neutral-zone fuel. Needed for any auto that uses its
+   *     own depot.
+   */
+  static Result run(
+      String label,
+      Alliance alliance,
+      Function<Autos, Command> autoFactory,
+      String trajectory,
+      boolean stockBothDepots) {
     List<Translation2d> path = new ArrayList<>();
     if (trajectory != null) {
       Trajectory<SwerveSample> traj = Choreo.<SwerveSample>loadTrajectory(trajectory).orElseThrow();
@@ -124,7 +139,9 @@ class AutoScoringHarness {
     DriverStationSim.notifyNewData();
     DriverStation.refreshData();
 
-    SimulatedArena.overrideInstance(new Arena2026Rebuilt(false));
+    Arena2026Rebuilt arena = new Arena2026Rebuilt(false);
+    arena.setEfficiencyMode(!stockBothDepots);
+    SimulatedArena.overrideInstance(arena);
     SwerveDriveSimulation driveSimulation =
         new SwerveDriveSimulation(
             DriveConstants.mapleSimConfig, new Pose2d(3, 3, new Rotation2d()));

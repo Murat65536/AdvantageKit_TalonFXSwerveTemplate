@@ -117,6 +117,8 @@ public class ModuleIOTalonFX implements ModuleIO {
 
     // Configure turn motor
     var turnConfig = new TalonFXConfiguration();
+    // Without this the steer motors ran with no current limit at all (see TunerConstants).
+    turnConfig.CurrentLimits = constants.SteerMotorInitialConfigs.CurrentLimits;
     turnConfig.MotorOutput.NeutralMode = NeutralModeValue.Brake;
     turnConfig.Slot0 = constants.SteerMotorGains;
     turnConfig.Feedback.FeedbackRemoteSensorID = constants.EncoderId;

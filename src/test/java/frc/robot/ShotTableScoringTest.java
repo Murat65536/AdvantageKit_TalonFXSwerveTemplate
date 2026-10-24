@@ -21,6 +21,18 @@ import org.junit.jupiter.api.Test;
  */
 public class ShotTableScoringTest {
 
+  /** Every 10 in across the table's own range, plus both ends: the shots the robot will take. */
+  private static final int[] TABLE_DISTANCES_IN =
+      java.util.stream.IntStream.concat(
+              java.util.stream.IntStream.iterate(
+                  (int) Math.ceil(Units.metersToInches(ShooterMath.getMinDistanceMeters())),
+                  d -> d <= Units.metersToInches(ShooterMath.getMaxDistanceMeters()) + 1e-6,
+                  d -> d + 10),
+              java.util.stream.IntStream.of(
+                  (int) Math.round(Units.metersToInches(ShooterMath.getMaxDistanceMeters()))))
+          .distinct()
+          .toArray();
+
   /**
    * maple-sim's {@code GamePieceProjectile.GRAVITY}. It is 11.0, not 9.81, on purpose: the
    * simulator models no air drag and inflates gravity as a single scalar standing in for the
@@ -79,7 +91,7 @@ public class ShotTableScoringTest {
     StringBuilder report = new StringBuilder("\n");
     boolean allScored = true;
 
-    for (int distInches = 60; distInches <= 260; distInches += 10) {
+    for (int distInches : TABLE_DISTANCES_IN) {
       double distance = Units.inchesToMeters(distInches);
       var params = ShooterMath.getShotParameters(distance);
       Optional<Double> entry = mapleEntryTime(distance, params.rpm(), params.angleDeg());
@@ -102,7 +114,7 @@ public class ShotTableScoringTest {
   void tableTofIsConsistentWithDragModel() {
     // TOF now comes from the drag model, so it must exceed the drag-free flight time
     // (drag slows the fuel) while staying in the same ballpark.
-    for (int distInches = 60; distInches <= 260; distInches += 10) {
+    for (int distInches : TABLE_DISTANCES_IN) {
       double distance = Units.inchesToMeters(distInches);
       var params = ShooterMath.getShotParameters(distance);
       double v = rpmToExitVelocity(params.rpm());
@@ -123,7 +135,7 @@ public class ShotTableScoringTest {
 
   @Test
   void hoodAnglesAreWithinMechanicalRange() {
-    for (int distInches = 60; distInches <= 260; distInches += 10) {
+    for (int distInches : TABLE_DISTANCES_IN) {
       var params = ShooterMath.getShotParameters(Units.inchesToMeters(distInches));
       assertTrue(
           params.angleDeg() >= 50.0 && params.angleDeg() <= 76.0,

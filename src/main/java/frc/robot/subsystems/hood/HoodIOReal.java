@@ -57,13 +57,24 @@ public class HoodIOReal implements HoodIO {
       new Alert(
           "Hood encoder not zeroed: jog the hood to its steep stop and press Pit > Zero Hood",
           AlertType.kError);
+  private final Alert zeroFailedAlert =
+      new Alert(
+          "Zero Hood failed: the Spark did not read 0 with the new offset; old zero kept",
+          AlertType.kError);
 
-  /** Raw reading at the steep hard stop, persisted in Preferences; 0 until first zeroed. */
-  private double encoderZeroDeg = Preferences.getDouble(ENCODER_ZERO_PREF_KEY, 0.0);
+  /** Loops to wait after writing an offset before trusting the reported position (20 ms each). */
+  private static final int ZERO_SETTLE_LOOPS = 5;
 
-  private boolean zeroed = Preferences.containsKey(ENCODER_ZERO_PREF_KEY);
+  /** The Spark's stored zero offset, read back from it; 0 until zeroed. */
+  private double sparkZeroOffsetRot = 0.0;
 
-  private double lastRawEncoderDeg = 0.0;
+  private double lastReportedEncoderDeg = 0.0;
+
+  // Zero Hood sequence: try each candidate offset, keep the first the Spark confirms.
+  private double[] zeroCandidates = null;
+  private int zeroCandidate = 0;
+  private int zeroSettleLoops = 0;
+  private double offsetBeforeZero = 0.0;
 
   private boolean jogging = false;
   private double jogVolts = 0.0;
@@ -86,6 +97,12 @@ public class HoodIOReal implements HoodIO {
         .follow(leftMotor, true);
     rightMotor.configure(
         rightConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+
+    // The zero lives in the Spark's flash (as with REV Hardware Client). The config above never
+    // sets it; read back what the Spark has so the log shows whether it survived the boot.
+    sparkZeroOffsetRot = leftMotor.configAccessor.absoluteEncoder.getZeroOffset();
+    // The zero used to be kept on the roboRIO under this key; drop it so only one zero exists.
+    Preferences.remove("Hood/EncoderZeroDeg");
   }
 
   @Override
@@ -93,9 +110,11 @@ public class HoodIOReal implements HoodIO {
     // Unwrapped so the travel is continuous. Do not wrap the error instead: the travel is exactly
     // half the encoder's period, so a full-travel move (50 -> 76) lands on the wrap boundary and
     // drove the hood the wrong way into the 50 deg stop.
-    lastRawEncoderDeg = absoluteEncoder.getPosition();
+    lastReportedEncoderDeg = absoluteEncoder.getPosition();
     double encoderVelocityDegPerSec = absoluteEncoder.getVelocity();
-    Angle angle = rawEncoderToAngle(lastRawEncoderDeg, encoderZeroDeg);
+    Angle angle = reportedEncoderToAngle(lastReportedEncoderDeg);
+    boolean zeroed = sparkZeroOffsetRot != 0.0;
+    stepZeroSequence();
     double angleDeg = angle.in(Degrees);
     // Encoder increases as the hood retracts, so hood angle velocity is the negative.
     double velocityDegPerSec = -encoderVelocityDegPerSec;
@@ -104,7 +123,10 @@ public class HoodIOReal implements HoodIO {
 
     boolean atSetpoint = Math.abs(goalDeg - angleDeg) <= HOOD_ANGLE_TOLERANCE.in(Degrees);
     double controlVolts = 0.0;
-    if (DriverStation.isDisabled()) {
+    if (zeroCandidates != null) {
+      // Mid Zero Hood: the reading may jump between offsets, so hold still and follow it.
+      setpoint = new TrapezoidProfile.State(angleDeg, 0.0);
+    } else if (DriverStation.isDisabled()) {
       // Start every enable from where the hood actually is, and give a stall another try.
       setpoint = new TrapezoidProfile.State(angleDeg, 0.0);
       stallCutoff = false;
@@ -142,9 +164,10 @@ public class HoodIOReal implements HoodIO {
     inputs.appliedVoltage = Volts.of(leftMotor.getAppliedOutput() * leftMotor.getBusVoltage());
     inputs.current = Amps.of(currentAmps);
     inputs.stallCutoff = stallCutoff;
-    inputs.rawEncoderDeg = lastRawEncoderDeg;
-    inputs.encoderZeroDeg = encoderZeroDeg;
+    inputs.reportedEncoderDeg = lastReportedEncoderDeg;
+    inputs.sparkZeroOffsetRot = sparkZeroOffsetRot;
     inputs.zeroed = zeroed;
+    inputs.zeroInProgress = zeroCandidates != null;
     inputs.jogging = jogging;
     notZeroedAlert.set(!zeroed);
     inputs.temp =
@@ -158,14 +181,68 @@ public class HoodIOReal implements HoodIO {
     rightMotorDisconnected.set(!inputs.rightMotorConnected);
   }
 
+  /**
+   * Starts Zero Hood: writes the zero offset to the Spark so the current position (the steep stop)
+   * reports 0, checks it took, then saves it to the Spark's flash. See {@link #stepZeroSequence}.
+   */
   @Override
   public void zeroAtSteepStop() {
-    encoderZeroDeg = lastRawEncoderDeg;
-    Preferences.setDouble(ENCODER_ZERO_PREF_KEY, encoderZeroDeg);
-    zeroed = true;
-    // The hood is now at MAX by definition; restart the profile there so it doesn't slew from the
-    // pre-zero reading back to the target.
-    setpoint = new TrapezoidProfile.State(MAX_HOOD_ANGLE.in(Degrees), 0.0);
+    offsetBeforeZero = sparkZeroOffsetRot;
+    zeroCandidates =
+        sparkZeroOffsetCandidates(
+            lastReportedEncoderDeg, offsetBeforeZero, ABSOLUTE_ENCODER_INVERTED);
+    zeroCandidate = 0;
+    zeroFailedAlert.set(false);
+    tryZeroCandidate();
+  }
+
+  private void tryZeroCandidate() {
+    writeZeroOffset(zeroCandidates[zeroCandidate], false);
+    zeroSettleLoops = ZERO_SETTLE_LOOPS;
+  }
+
+  /**
+   * Runs once per loop while zeroing. Waits for the Spark to report with the new offset, keeps it
+   * (and saves it to flash) if the hood now reads as the steep stop, otherwise tries the next
+   * candidate, and puts the old offset back if none work.
+   */
+  private void stepZeroSequence() {
+    if (zeroCandidates == null || --zeroSettleLoops > 0) {
+      return;
+    }
+    if (readsAsSteepStop(lastReportedEncoderDeg)) {
+      writeZeroOffset(zeroCandidates[zeroCandidate], true);
+      zeroCandidates = null;
+      // The hood is now at MAX by definition; restart the profile there so it doesn't slew from
+      // the pre-zero reading back to the target.
+      setpoint = new TrapezoidProfile.State(MAX_HOOD_ANGLE.in(Degrees), 0.0);
+      return;
+    }
+    zeroCandidate++;
+    if (zeroCandidate < zeroCandidates.length) {
+      tryZeroCandidate();
+      return;
+    }
+    writeZeroOffset(offsetBeforeZero, false);
+    zeroCandidates = null;
+    zeroFailedAlert.set(true);
+    // The Hood asked for MAX expecting the new zero; hold where the hood really is instead.
+    targetAngle =
+        Degrees.of(clampTargetDeg(reportedEncoderToAngle(lastReportedEncoderDeg).in(Degrees)));
+  }
+
+  /**
+   * Sets the Spark's absolute encoder zero offset, touching nothing else. With {@code persist} the
+   * Spark also saves its settings to flash, so the zero survives power cycles.
+   */
+  private void writeZeroOffset(double offsetRot, boolean persist) {
+    SparkMaxConfig config = new SparkMaxConfig();
+    config.absoluteEncoder.zeroOffset(offsetRot);
+    leftMotor.configure(
+        config,
+        ResetMode.kNoResetSafeParameters,
+        persist ? PersistMode.kPersistParameters : PersistMode.kNoPersistParameters);
+    sparkZeroOffsetRot = leftMotor.configAccessor.absoluteEncoder.getZeroOffset();
   }
 
   @Override

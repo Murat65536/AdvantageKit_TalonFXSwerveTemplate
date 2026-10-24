@@ -76,9 +76,11 @@ public class Hood extends SubsystemBase {
 
   /**
    * Zero the hood encoder: with the hood against its steep (fully retracted) hard stop, run this.
-   * That position then reads {@link HoodConstants#MAX_HOOD_ANGLE}, and the zero is kept across
-   * reboots and deploys. Works enabled or disabled: the target moves to the new reading in the same
-   * step, so the hood holds still instead of chasing its old target. Refuses to run on the field.
+   * That position then reads {@link HoodConstants#MAX_HOOD_ANGLE}. The zero is the Spark's own
+   * absolute encoder zero offset, saved to its flash: the same setting REV Hardware Client writes,
+   * so either can be used. Works enabled or disabled: the target moves to the new reading in the
+   * same step, so the hood holds still instead of chasing its old target. Refuses to run on the
+   * field.
    */
   public Command zeroAtSteepStop() {
     return Commands.runOnce(

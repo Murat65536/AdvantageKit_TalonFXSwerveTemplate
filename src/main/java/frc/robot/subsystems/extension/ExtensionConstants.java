@@ -23,22 +23,32 @@ public class ExtensionConstants {
   public static final Voltage RETRACT_VOLTAGE = Volts.of(-0.5 * 12.0);
 
   /** How long to drive outward before the extension is considered fully extended. */
-  public static final Time EXTEND_TIME = Seconds.of(0.51);
+  public static final Time EXTEND_TIME = Seconds.of(0.825);
 
   /**
-   * Safety cap on a retract, in case the reverse limit switch fails or comes unplugged. A healthy
-   * retract takes well under this (the systems check fails one slower than 4x EXTEND_TIME).
+   * Safety cap on a retract, in case the reverse limit switch fails or comes unplugged: 4x
+   * EXTEND_TIME, the same limit at which the systems check fails a retract as too slow. Scales with
+   * EXTEND_TIME because a longer extend means more travel to pull back in.
    */
-  public static final Time RETRACT_TIMEOUT = Seconds.of(2.0);
+  public static final Time RETRACT_TIMEOUT = EXTEND_TIME.times(4.0);
 
   /**
-   * While feeding fuel to the shooter the hopper is slowly pulled inward, ramping from the start to
-   * the end voltage over {@link #CREEP_RAMP_TIME}, to keep fuel flowing into the indexer.
+   * While feeding fuel to the shooter the hopper is pulled inward to keep fuel flowing into the
+   * indexer: nothing for the Retract Delay (Match tab, {@link #RETRACT_DELAY_KEY}), then a ramp
+   * from the start to the end voltage over {@link #CREEP_RAMP_TIME}, then the end voltage until the
+   * retract switch trips.
+   *
+   * <p>The voltages are the 2026RobotProject's: 25% duty rising to 40%. The previous Wescavator
+   * creep (2.4 to 6.6 V) pulled the hopper in too quickly. That project also waited 0.5 s before
+   * pulling in; here the wait is the dashboard's Retract Delay, which starts at 0 s every boot.
    */
-  public static final Voltage CREEP_IN_START_VOLTAGE = Volts.of(-0.2 * 12.0);
+  public static final String RETRACT_DELAY_KEY = "/SmartDashboard/Match/Retract Delay";
 
-  public static final Voltage CREEP_IN_END_VOLTAGE = Volts.of(-0.55 * 12.0);
-  public static final Time CREEP_RAMP_TIME = Seconds.of(1.0);
+  public static final double DEFAULT_RETRACT_DELAY_SECONDS = 0.0;
+
+  public static final Voltage CREEP_IN_START_VOLTAGE = Volts.of(-0.25 * 12.0);
+  public static final Voltage CREEP_IN_END_VOLTAGE = Volts.of(-0.4 * 12.0);
+  public static final Time CREEP_RAMP_TIME = Seconds.of(0.5);
 
   // Sim travel model (motor rotations; position is zeroed at the retract switch)
   public static final double MIN_POSITION_ROT = 0.0;

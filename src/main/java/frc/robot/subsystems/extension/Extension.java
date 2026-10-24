@@ -15,6 +15,7 @@ import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import java.util.function.BooleanSupplier;
 import org.littletonrobotics.junction.Logger;
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
 
 /**
  * Hopper extension. Extends open-loop on a timer (there is no forward limit switch) and retracts
@@ -26,6 +27,10 @@ public class Extension extends SubsystemBase {
 
   /** Set when a timed extend completes; cleared whenever the extension is driven inward. */
   private boolean fullyExtended = false;
+
+  /** Seconds to wait after feeding starts before pulling the hopper in (Match tab). */
+  private final LoggedNetworkNumber retractDelaySeconds =
+      new LoggedNetworkNumber(RETRACT_DELAY_KEY, DEFAULT_RETRACT_DELAY_SECONDS);
 
   public Extension(ExtensionIO io) {
     this.io = io;
@@ -70,14 +75,20 @@ public class Extension extends SubsystemBase {
   }
 
   /**
-   * Slowly pull the hopper inward while feeding fuel to the shooter, ramping the voltage over
-   * {@link ExtensionConstants#CREEP_RAMP_TIME}. Ends when the reverse limit switch trips.
+   * Slowly pull the hopper inward while feeding fuel to the shooter: wait the dashboard's Retract
+   * Delay, then ramp the voltage over {@link ExtensionConstants#CREEP_RAMP_TIME}. Ends when the
+   * reverse limit switch trips.
    */
   public Command creepIn() {
     Timer timer = new Timer();
     return Commands.runEnd(
             () -> {
-              double t = MathUtil.clamp(timer.get() / CREEP_RAMP_TIME.in(Seconds), 0.0, 1.0);
+              double sinceStart = timer.get() - Math.max(0.0, retractDelaySeconds.get());
+              if (sinceStart < 0.0) {
+                io.setMotorVoltage(Volts.zero());
+                return;
+              }
+              double t = MathUtil.clamp(sinceStart / CREEP_RAMP_TIME.in(Seconds), 0.0, 1.0);
               double volts =
                   MathUtil.interpolate(
                       CREEP_IN_START_VOLTAGE.in(Volts), CREEP_IN_END_VOLTAGE.in(Volts), t);

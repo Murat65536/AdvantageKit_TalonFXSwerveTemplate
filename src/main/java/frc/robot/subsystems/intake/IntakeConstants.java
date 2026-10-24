@@ -9,8 +9,9 @@ public class IntakeConstants {
   // Motor config
   public static final int ROLLER_MOTOR_ID = 17;
   public static final boolean ROLLER_INVERTED = false;
-  // Raised from 30 A: starting next to a ball (in or out) stalled the roller at the limit
-  public static final Current ROLLER_CURRENT_LIMIT = Amps.of(40);
+  // 70 A, as in the 2026RobotProject (MAX_VORTEX_CURRENT). 30 A, then 40 A, left the roller
+  // underpowered: it stalled starting next to a ball and bogged down while intaking.
+  public static final Current ROLLER_CURRENT_LIMIT = Amps.of(70);
 
   // Voltages
   public static final Voltage INTAKE_RUN_VOLTAGE = Volts.of(11);

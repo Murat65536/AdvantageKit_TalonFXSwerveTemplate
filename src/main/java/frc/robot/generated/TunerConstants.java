@@ -59,14 +59,24 @@ public class TunerConstants {
 
   // Initial configs for the drive and steer motors and the azimuth encoder; these cannot be null.
   // Some configs will be overwritten; check the `with*InitialConfigs()` API documentation.
-  private static final TalonFXConfiguration driveInitialConfigs = new TalonFXConfiguration();
+  // Supply current limits on every swerve motor, copied from the 2026RobotProject, which ran this
+  // drivetrain without browning out: 50 A, dropping to 20 A once a motor has been over 50 A for
+  // 0.4 s. Without them the drive pulls enough from the battery to brown out the robot.
+  private static final CurrentLimitsConfigs swerveSupplyLimits =
+      new CurrentLimitsConfigs()
+          .withSupplyCurrentLimit(Amps.of(50))
+          .withSupplyCurrentLowerLimit(Amps.of(20))
+          .withSupplyCurrentLowerTime(Seconds.of(0.4))
+          .withSupplyCurrentLimitEnable(true);
+  private static final TalonFXConfiguration driveInitialConfigs =
+      new TalonFXConfiguration().withCurrentLimits(swerveSupplyLimits.clone());
   private static final TalonFXConfiguration steerInitialConfigs =
       new TalonFXConfiguration()
           .withCurrentLimits(
-              new CurrentLimitsConfigs()
+              swerveSupplyLimits
+                  .clone()
                   // Swerve azimuth does not require much torque output, so we can set a relatively
-                  // low
-                  // stator current limit to help avoid brownouts without impacting performance.
+                  // low stator current limit to help avoid brownouts without impacting performance.
                   .withStatorCurrentLimit(Amps.of(60))
                   .withStatorCurrentLimitEnable(true));
   private static final CANcoderConfiguration encoderInitialConfigs = new CANcoderConfiguration();

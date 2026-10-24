@@ -39,12 +39,18 @@ public interface HoodIO {
     public boolean atSetpoint = false;
     /** Output cut by the stall detector; clears when the robot is disabled. */
     public boolean stallCutoff = false;
-    /** Encoder reading before the zero is applied, for calibration. */
-    public double rawEncoderDeg = 0.0;
-    /** Raw reading that maps to the steep hard stop (see HoodConstants.ENCODER_ZERO_PREF_KEY). */
-    public double encoderZeroDeg = 0.0;
-    /** False until "Zero Hood" has been pressed on this roboRIO. */
+    /** Position the Spark reports, in hood degrees, with its own zero offset already applied. */
+    public double reportedEncoderDeg = 0.0;
+    /**
+     * Zero offset stored in the Spark's flash (rotations), the same setting REV Hardware Client
+     * shows. Read back from the Spark at boot and after each zero, so a power cycle that loses it
+     * shows up here.
+     */
+    public double sparkZeroOffsetRot = 0.0;
+    /** False while the Spark's zero offset is still the factory 0. */
     public boolean zeroed = false;
+    /** A Zero Hood press is being applied and checked; position control pauses meanwhile. */
+    public boolean zeroInProgress = false;
 
     public boolean jogging = false;
   }

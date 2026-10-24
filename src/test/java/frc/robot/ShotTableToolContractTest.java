@@ -86,10 +86,17 @@ public class ShotTableToolContractTest {
   @Test
   void scriptCanStillParseTheCommittedTable() throws IOException {
     List<TableRow> rows = parseTable();
-    assertTrue(
-        rows.size() >= 10,
-        "derive_shot_table.py's parser found only "
+    // Every row in the source, however many the table has (it is 3 measured rows now).
+    String source = Files.readString(SHOOTER_MATH, StandardCharsets.UTF_8);
+    int puts = source.split("shotTable\\.put\\(", -1).length - 1;
+    assertTrue(puts > 0, "ShooterMath.java has no shotTable.put rows");
+    assertEquals(
+        puts,
+        rows.size(),
+        "derive_shot_table.py's parser found "
             + rows.size()
+            + " of the "
+            + puts
             + " rows in ShooterMath.java. If the table was reformatted, update the regex in "
             + "parse_committed_table() to match, or --write/--check will silently misbehave.");
   }

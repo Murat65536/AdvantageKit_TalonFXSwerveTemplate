@@ -9,7 +9,6 @@ package frc.robot;
 
 import static edu.wpi.first.units.Units.Degrees;
 import static edu.wpi.first.units.Units.RPM;
-import static frc.robot.subsystems.hood.HoodConstants.TRIM_STEP;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
 import choreo.util.ChoreoAllianceFlipUtil;
@@ -25,11 +24,13 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.CommandXboxController;
 import edu.wpi.first.wpilibj2.command.button.RobotModeTriggers;
+import edu.wpi.first.wpilibj2.command.button.Trigger;
 import edu.wpi.first.wpilibj2.command.sysid.SysIdRoutine;
 import frc.robot.auton.Autos;
 import frc.robot.auton.StartPoseCheck;
 import frc.robot.commands.DriveCommands;
 import frc.robot.commands.DriverRumble;
+import frc.robot.commands.ManualShot;
 import frc.robot.commands.ShootCommands;
 import frc.robot.commands.SystemsCheck;
 import frc.robot.commands.TuningCommands;
@@ -88,6 +89,7 @@ import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
  */
 public class RobotContainer {
   private static final int DRIVER_CONTROLLER_PORT = 0;
+  private static final int OPERATOR_CONTROLLER_PORT = 1;
 
   // Subsystems
   private final Drive drive;
@@ -105,9 +107,21 @@ public class RobotContainer {
   private SwerveDriveSimulation driveSimulation = null;
 
   // Controllers
+  // Two controllers, as in the 2026RobotProject: the driver drives and aims, the operator runs
+  // the fuel path and feeds the shot.
   private final CommandXboxController driver = new CommandXboxController(DRIVER_CONTROLLER_PORT);
+  private final CommandXboxController operator =
+      new CommandXboxController(OPERATOR_CONTROLLER_PORT);
+  /** Both controllers rumble together, as in the old project. */
   private final DriverRumble rumble =
-      new DriverRumble(level -> driver.getHID().setRumble(RumbleType.kBothRumble, level));
+      new DriverRumble(
+          level -> {
+            driver.getHID().setRumble(RumbleType.kBothRumble, level);
+            operator.getHID().setRumble(RumbleType.kBothRumble, level);
+          });
+
+  /** Manual mode (dashboard toggle): operator-set flywheel speed and hood angle. */
+  private final ManualShot manualShot = new ManualShot();
 
   // Dashboard inputs
   private final LoggedDashboardChooser<Command> autoChooser;
@@ -125,9 +139,6 @@ public class RobotContainer {
   private Optional<Pose2d> selectedAutoStart = Optional.empty();
 
   private boolean startPoseOk = true;
-
-  /** Driver toggle: feed even when our hub looks inactive. Starts off every boot. */
-  private boolean ignoreHubSchedule = false;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
@@ -233,6 +244,10 @@ public class RobotContainer {
         "Center Preload (8 fuel)",
         autos.centerPreload(),
         ChoreoTraj.Center_Preload.initialPoseBlue());
+    addAuto(
+        "Center Depot (preload + depot)",
+        autos.centerDepot(),
+        ChoreoTraj.Center_Depot.initialPoseBlue());
     for (ChoreoTraj trajectory : autos.getAvailableTrajectories()) {
       addAuto(
           "Choreo " + trajectory.name().replace('_', ' '),
@@ -310,15 +325,20 @@ public class RobotContainer {
    * robot once the alignment it is performing has converged.
    */
   private void configureBindings() {
-    // Warn the driver before our hub activates, for all of teleop.
+    // Warn both drivers before our hub activates, for all of teleop.
     RobotModeTriggers.teleop().whileTrue(rumble.hubWarning());
+
+    Trigger manualMode = new Trigger(manualShot::isEnabled);
+    Trigger automaticMode = manualMode.negate();
+
+    // ---------------- Driver (port 0) ----------------
 
     // Default command: field-relative drive that slows down while driving into a bump
     drive.setDefaultCommand(
         DriveCommands.bumpAwareJoystickDrive(
             drive, () -> -driver.getLeftY(), () -> -driver.getLeftX(), () -> -driver.getRightX()));
 
-    // Re-seed field-centric heading: robot's front faces away from the driver station
+    // Start: re-seed field-centric heading (robot's front faces away from the driver station)
     driver
         .start()
         .onTrue(
@@ -332,61 +352,66 @@ public class RobotContainer {
                                     : Rotation2d.kZero)))
                 .ignoringDisable(true));
 
-    // Switch to X pattern when X button is pressed
-    driver.x().onTrue(Commands.runOnce(drive::stopWithX, drive));
+    // X: lock the wheels in an X while held
+    driver.x().whileTrue(drive.run(drive::stopWithX).withName("DriveXLock"));
 
-    // While B is held, extend and only run intake once extension is fully extended
-    driver
-        .b()
-        .whileTrue(
-            Commands.parallel(extension.extend(), intake.intake(extension::isFullyExtended)));
-
-    // Obstacle align: snap heading for trench / bump while held
+    // Left bumper: snap heading for the trench / bump while held
     driver
         .leftBumper()
         .whileTrue(
             DriveCommands.joystickDriveObstacleAlign(
                 drive, () -> -driver.getLeftY(), () -> -driver.getLeftX()));
 
-    // ONE-BUTTON SHOT: aim at the target and shoot as soon as that aim converges.
-    // Translation stays on the left stick so the driver can keep repositioning while it fires.
+    // Left trigger: aim at the hub and spin up the shot (flywheel, kicker, hood) while held. The
+    // operator feeds with right trigger. Off in manual mode, where the operator sets the shot.
     driver
         .leftTrigger()
+        .and(automaticMode)
         .whileTrue(
             DriveCommands.joystickDriveAimAtTarget(
                     drive, () -> -driver.getLeftY(), () -> -driver.getLeftX())
-                .alongWith(shootAtTarget(), rumble.whileAiming()));
+                .alongWith(
+                    ShootCommands.spinUp(drive, shooter, hood, kicker), rumble.whileAiming()));
 
-    // Manual shot without auto-aim, for when the driver wants to aim by hand.
-    driver.rightTrigger().whileTrue(shootAtTarget());
+    // ---------------- Operator (port 1) ----------------
 
-    // Intake / outtake (roller only)
-    driver.rightBumper().whileTrue(intake.intake(extension::isFullyExtended));
-    driver.a().whileTrue(intake.outtake());
+    // Bumpers: outtake (left) and intake (right) while held. Intake runs once the hopper is out.
+    operator.leftBumper().whileTrue(intake.outtake());
+    operator.rightBumper().whileTrue(intake.intake(extension::isFullyExtended));
 
-    // Extension in / out
-    driver.povRight().onTrue(extension.extend());
-    driver.povLeft().onTrue(extension.retract());
+    // A / Y: hopper extension out / in
+    operator.a().onTrue(extension.extend());
+    operator.y().onTrue(extension.retract());
 
-    // Clear a jam by reversing the whole fuel path
-    driver.back().whileTrue(ShootCommands.unjam(shooter, kicker, feeder, indexer, intake));
+    // Right trigger: feed while held. Automatic mode feeds only once the shot is ready (the driver
+    // must be holding left trigger to aim and spin up). Manual mode spins the flywheel at the
+    // manual speed instead; feed with B.
+    operator
+        .rightTrigger()
+        .and(automaticMode)
+        .whileTrue(
+            ShootCommands.autoFeed(
+                ShootCommands.readyToFeed(drive, shooter, hood),
+                feeder,
+                indexer,
+                intake,
+                extension));
+    operator.rightTrigger().and(manualMode).whileTrue(manualShot.spinShooter(shooter, kicker));
 
-    // Hub-schedule override: toggles feeding into a hub the code thinks is inactive. For when the
-    // field's game data or match time is wrong; the driver can see the hub lights.
-    driver
-        .rightStick()
-        .onTrue(
-            Commands.runOnce(() -> ignoreHubSchedule = !ignoreHubSchedule).ignoringDisable(true));
+    // Manual mode only: X runs the kicker, B runs the feeder and indexer, while held
+    operator.x().and(manualMode).whileTrue(kicker.shoot());
+    operator.b().and(manualMode).whileTrue(feeder.feed().alongWith(indexer.index()));
 
-    // Hood trim (applied on top of the calculated launch angle); Y resets it
-    driver.povUp().onTrue(hood.adjustTrim(TRIM_STEP));
-    driver.povDown().onTrue(hood.adjustTrim(TRIM_STEP.unaryMinus()));
-    driver.y().onTrue(hood.resetTrim());
-  }
+    // D-pad: manual flywheel speed (up / down) and hood angle (right steeper / left shallower);
+    // Start puts both back to their defaults
+    operator.povUp().onTrue(manualShot.adjustRpm(ManualShot.RPM_STEP));
+    operator.povDown().onTrue(manualShot.adjustRpm(-ManualShot.RPM_STEP));
+    operator.povRight().onTrue(manualShot.adjustHood(ManualShot.HOOD_STEP_DEG));
+    operator.povLeft().onTrue(manualShot.adjustHood(-ManualShot.HOOD_STEP_DEG));
+    operator.start().onTrue(manualShot.reset());
 
-  private Command shootAtTarget() {
-    return ShootCommands.shootAtTarget(
-        drive, shooter, hood, kicker, feeder, indexer, intake, extension, () -> ignoreHubSchedule);
+    // In manual mode the hood holds the manual angle for all of teleop
+    RobotModeTriggers.teleop().and(manualMode).whileTrue(manualShot.holdHood(hood));
   }
 
   private void addAuto(String name, Command command, Pose2d startPoseBlue) {
@@ -427,12 +452,7 @@ public class RobotContainer {
     if (DriverStation.isEnabled()) {
       startPoseOk = true; // only meaningful while lining up, before the match
     }
-    dashboard.update(drive.getPose(), selectedAutoStart(), startPoseOk, ignoreHubSchedule);
-  }
-
-  /** Whether the driver has turned off the hub-schedule feed gate (right stick click). */
-  public boolean isIgnoringHubSchedule() {
-    return ignoreHubSchedule;
+    dashboard.update(drive.getPose(), selectedAutoStart(), startPoseOk, manualShot);
   }
 
   /**

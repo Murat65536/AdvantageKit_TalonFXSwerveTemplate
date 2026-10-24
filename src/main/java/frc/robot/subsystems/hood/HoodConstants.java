@@ -72,17 +72,53 @@ public class HoodConstants {
     return MAX_HOOD_ANGLE.minus(Degrees.of(encoderPositionDeg));
   }
 
-  /**
-   * roboRIO Preferences key holding the raw encoder reading at the steep (fully retracted, {@link
-   * #MAX_HOOD_ANGLE}) hard stop. Set with the Pit tab's "Zero Hood" button. It lives in code, not
-   * on the Spark, because the Spark is configured with kResetSafeParameters on every boot, which
-   * wipes a zero offset set in REV Hardware Client.
-   */
-  public static final String ENCODER_ZERO_PREF_KEY = "Hood/EncoderZeroDeg";
+  /** Hood angle from the Spark's reported absolute position, which already has its zero applied. */
+  public static Angle reportedEncoderToAngle(double reportedEncoderDeg) {
+    return encoderPositionToAngle(unwrapEncoderPosition(reportedEncoderDeg));
+  }
 
-  /** Raw encoder reading to hood angle, given the raw reading at the steep hard stop. */
-  public static Angle rawEncoderToAngle(double rawEncoderDeg, double zeroRawEncoderDeg) {
-    return encoderPositionToAngle(unwrapEncoderPosition(rawEncoderDeg - zeroRawEncoderDeg));
+  /**
+   * After zeroing, the Spark must report within this of 0 (the steep stop) or the zero is rejected.
+   */
+  public static final double ZERO_VERIFY_TOLERANCE_DEG = 1.0;
+
+  /**
+   * Whether a reported encoder position is the steep stop: 0, allowing for the wrap at a period.
+   */
+  public static boolean readsAsSteepStop(double reportedEncoderDeg) {
+    double wrapped =
+        MathUtil.inputModulus(
+            reportedEncoderDeg,
+            -ENCODER_POSITION_CONVERSION_FACTOR / 2.0,
+            ENCODER_POSITION_CONVERSION_FACTOR / 2.0);
+    return Math.abs(wrapped) <= ZERO_VERIFY_TOLERANCE_DEG;
+  }
+
+  /**
+   * Spark zero offsets (rotations, [0, 1)) that make the current position report as 0, given what
+   * it reports now and the offset it currently has. This is the same setting REV Hardware Client
+   * writes, and it lives in the Spark's flash.
+   *
+   * <p>REV specifies the offset "as if the zero offset was 0, the conversion factor 1, and inverted
+   * false", which says it is subtracted from the raw reading before inversion. That is candidate 0.
+   * In case the firmware applies it after inversion instead, candidate 1 covers that order. The two
+   * are equal when the encoder is not inverted. The caller tries them in order and keeps the first
+   * that the Spark confirms by reporting 0.
+   */
+  public static double[] sparkZeroOffsetCandidates(
+      double reportedEncoderDeg, double currentOffsetRot, boolean inverted) {
+    double reportedRot = wrapRotations(reportedEncoderDeg / ENCODER_POSITION_CONVERSION_FACTOR);
+    // Offset before inversion: reported = inv(raw - offset), so raw = inv(reported) + offset.
+    double beforeInversion =
+        wrapRotations((inverted ? 1.0 - reportedRot : reportedRot) + currentOffsetRot);
+    // Offset after inversion: reported = inv(raw) - offset, so the new offset is inv(raw).
+    double afterInversion = wrapRotations(reportedRot + currentOffsetRot);
+    return new double[] {beforeInversion, afterInversion};
+  }
+
+  private static double wrapRotations(double rotations) {
+    double wrapped = rotations % 1.0;
+    return wrapped < 0.0 ? wrapped + 1.0 : wrapped;
   }
 
   public static final Translation3d HOOD_PIVOT_TRANSLATION = new Translation3d(0.0, 0.0, 0.0);

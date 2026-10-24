@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.math.util.Units;
+import frc.robot.subsystems.shooter.ShooterConstants;
 import frc.robot.subsystems.shooter.ShooterMath;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,9 +20,21 @@ import org.junit.jupiter.api.Test;
  */
 public class ShotTableRealPhysicsTest {
 
+  /** Every 10 in across the table's own range, plus both ends: the shots the robot will take. */
+  private static final int[] TABLE_DISTANCES_IN =
+      java.util.stream.IntStream.concat(
+              java.util.stream.IntStream.iterate(
+                  (int) Math.ceil(Units.metersToInches(ShooterMath.getMinDistanceMeters())),
+                  d -> d <= Units.metersToInches(ShooterMath.getMaxDistanceMeters()) + 1e-6,
+                  d -> d + 10),
+              java.util.stream.IntStream.of(
+                  (int) Math.round(Units.metersToInches(ShooterMath.getMaxDistanceMeters()))))
+          .distinct()
+          .toArray();
+
   private static final Translation2d HUB = new Translation2d(4.5974, 4.034536);
   private static final double LAUNCH_HEIGHT = Units.inchesToMeters(21.2315);
-  private static final double SLIP = Units.inchesToMeters(2.0) * 0.58;
+  private static final double SLIP = ShooterConstants.EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC;
 
   /**
    * Required tolerance to flywheel error, each way. The flywheel's own readiness gate is {@code
@@ -55,7 +68,7 @@ public class ShotTableRealPhysicsTest {
     StringBuilder report = new StringBuilder("\n");
     boolean allScored = true;
 
-    for (int distInches = 60; distInches <= 260; distInches += 10) {
+    for (int distInches : TABLE_DISTANCES_IN) {
       double distance = Units.inchesToMeters(distInches);
       var params = ShooterMath.getShotParameters(distance);
       FuelPhysics.Result r = shootFrom(distance, params.rpm(), params.angleDeg());
@@ -83,7 +96,7 @@ public class ShotTableRealPhysicsTest {
     StringBuilder report = new StringBuilder("\n");
     boolean allOk = true;
 
-    for (int distInches = 60; distInches <= 260; distInches += 10) {
+    for (int distInches : TABLE_DISTANCES_IN) {
       double distance = Units.inchesToMeters(distInches);
       var params = ShooterMath.getShotParameters(distance);
 

@@ -40,7 +40,14 @@ public class ShooterConstants {
   public static final Translation3d BALL_EXIT_TRANSLATION =
       new Translation3d(Units.inchesToMeters(6.384), 0, Units.inchesToMeters(21.2315));
   public static final Distance FLYWHEEL_EFFECTIVE_RADIUS = Inches.of(2.0);
-  public static final double EXIT_VELOCITY_SLIP_FACTOR = 0.58;
+  /**
+   * Exit speed / (flywheel surface speed). Fitted with tools/fit_slip_factor.py (score method, real
+   * drag model) from the three shots in ShooterMath's table, which were tuned on this robot: 0.435,
+   * 0.482 and 0.452. It was 0.58, a simulation guess, which is why the old sim-derived table was so
+   * steep. Only the simulator and the logged exit velocity use it; the robot spins the table's RPM.
+   */
+  public static final double EXIT_VELOCITY_SLIP_FACTOR = 0.456;
+
   public static final double EXIT_VELOCITY_PER_FLYWHEEL_RAD_PER_SEC =
       FLYWHEEL_EFFECTIVE_RADIUS.in(Meters) * EXIT_VELOCITY_SLIP_FACTOR;
   public static final Time SHOOTER_SHOT_PERIOD = Seconds.of(0.03);
@@ -56,7 +63,8 @@ public class ShooterConstants {
   public static final double SHOOTER_OFFSET_X_METERS = -BALL_EXIT_TRANSLATION.getX();
 
   // Dynamic shot limits and conversion
-  public static final LinearVelocity MIN_DYNAMIC_EXIT_VELOCITY = MetersPerSecond.of(8.0);
+  // Real shots leave at about 6 to 8 m/s (2500 to 3500 RPM at the slip factor above).
+  public static final LinearVelocity MIN_DYNAMIC_EXIT_VELOCITY = MetersPerSecond.of(4.0);
   public static final LinearVelocity MAX_DYNAMIC_EXIT_VELOCITY = MetersPerSecond.of(22.0);
   public static final AngularVelocity MAX_FLYWHEEL_VELOCITY = RPM.of(6784.0);
 

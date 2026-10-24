@@ -6,6 +6,7 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.wpilibj.RobotController;
 import edu.wpi.first.wpilibj.smartdashboard.Field2d;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.commands.ManualShot;
 import frc.robot.commands.SystemsCheck;
 import frc.robot.subsystems.hood.Hood;
 import frc.robot.subsystems.shooter.ShooterMath;
@@ -39,13 +40,10 @@ public final class Dashboard {
   /**
    * @param autoStart the selected auto's start pose for our alliance, if it has one
    * @param startPoseOk from {@code StartPoseCheck}; true when there is no start pose
-   * @param ignoringHubSchedule the driver's hub-schedule override (right stick)
+   * @param manualShot manual mode's on/off state and the operator-set speed and hood angle
    */
   public void update(
-      Pose2d robotPose,
-      Optional<Pose2d> autoStart,
-      boolean startPoseOk,
-      boolean ignoringHubSchedule) {
+      Pose2d robotPose, Optional<Pose2d> autoStart, boolean startPoseOk, ManualShot manualShot) {
     field.setRobotPose(robotPose);
     field.getObject("Auto Start").setPoses(autoStart.map(List::of).orElse(List.of()));
 
@@ -54,7 +52,8 @@ public final class Dashboard {
     SmartDashboard.putBoolean(MATCH + "Start Pose OK", startPoseOk);
     SmartDashboard.putBoolean(MATCH + "Hub Active", HubShiftUtil.isHubActive());
     SmartDashboard.putBoolean(MATCH + "In Range", ShooterMath.isInTableRange(distance));
-    SmartDashboard.putBoolean(MATCH + "Hub Override", ignoringHubSchedule);
+    SmartDashboard.putNumber(MATCH + "Manual RPM", manualShot.getRpm());
+    SmartDashboard.putNumber(MATCH + "Manual Hood", manualShot.getHoodDeg());
     SmartDashboard.putNumber(BATTERY, RobotController.getBatteryVoltage());
     SmartDashboard.putNumber(PIT + "Hood Angle", hood.getAngle().in(Degrees));
   }

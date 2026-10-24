@@ -32,23 +32,23 @@ public final class ShooterMath {
   }
 
   /**
-   * Shot table keyed by horizontal distance (m) from the shooter exit to the target. Values outside
-   * the table are clamped to the nearest end, so the robot always produces a shot.
+   * Shot table keyed by horizontal distance (m) from the shooter exit to the hub centre. Values
+   * outside the table are clamped to the nearest end, so the robot always produces a shot.
    *
-   * <p>DERIVED, not hand-tuned, and validated against REALISTIC ballistics -- real gravity (9.81)
-   * with quadratic air drag, a solid hub tower the fuel can strike, and a net that catches
-   * overshoots. See {@code FuelPhysics} / {@code ShotTableRealPhysicsTest}, ported from team 6328's
-   * FuelSim. Each row maximizes tolerance to flywheel speed error.
+   * <p>MEASURED ON THE ROBOT: the RPM and hood angle of each row are the 2026RobotProject's shot
+   * map ({@code ShooterConstants.SHOOTER_RPM_MAP}), tuned on this same robot. That project measures
+   * distance the same way (barrel exit to hub centre) and drives the hood with the same angle
+   * convention, so the rows carry over unchanged. Beyond 188 in it held 60 deg / 3500 RPM, which
+   * the clamp reproduces.
    *
-   * <p>The angle column varies with distance by derivation: close shots use the steepest hood angle
-   * (76 deg) to drop nearly vertically into the opening and clear the surrounding tower, while long
-   * shots flatten out (to a minimum of 53.5 deg at 240 in) because a steep lob there arrives too
-   * steeply to satisfy both models.
+   * <p>The previous table was derived in simulation and asked for 76 deg (the steepest) from 60 to
+   * 160 in, 3 to 14 deg steeper than these. On the robot those shots went high and missed. The sim
+   * assumed an exit-velocity slip factor of 0.58; these real shots imply about 0.43 to 0.47.
    *
-   * <p>Range is 60..260 in. The old 90..210 in table was too narrow: a robot sitting 247 in from
-   * the hub had its distance silently clamped to the 210 in row and every shot fell short.
-   *
-   * <p>TOF is computed from the drag model, so the moving-shot lookahead stays consistent.
+   * <p>TOF is NOT measured (the old project had none). It is the drag-free flight time that takes a
+   * ball launched at the row's angle from the barrel height (21.2 in) through the top of the hub
+   * opening (72 in) at the row's distance. Every row arrives descending, as a scoring shot must.
+   * Only the moving-shot lookahead and the hub-schedule feed gate use it.
    */
   private static final InterpolatingTreeMap<Double, ShotParameters> shotTable =
       new InterpolatingTreeMap<>(InverseInterpolator.forDouble(), ShotParameters::interpolate);
@@ -57,33 +57,25 @@ public final class ShooterMath {
   private static final double maxDistanceMeters;
 
   static {
-    shotTable.put(Units.inchesToMeters(60), new ShotParameters(2125, 76.0, 1.004));
-    shotTable.put(Units.inchesToMeters(70), new ShotParameters(2260, 76.0, 1.104));
-    shotTable.put(Units.inchesToMeters(80), new ShotParameters(2395, 76.0, 1.196));
-    shotTable.put(Units.inchesToMeters(90), new ShotParameters(2530, 76.0, 1.284));
-    shotTable.put(Units.inchesToMeters(100), new ShotParameters(2650, 76.0, 1.364));
-    shotTable.put(Units.inchesToMeters(110), new ShotParameters(2770, 76.0, 1.436));
-    shotTable.put(Units.inchesToMeters(120), new ShotParameters(2890, 76.0, 1.512));
-    shotTable.put(Units.inchesToMeters(130), new ShotParameters(3000, 76.0, 1.576));
-    shotTable.put(Units.inchesToMeters(140), new ShotParameters(3110, 76.0, 1.640));
-    shotTable.put(Units.inchesToMeters(150), new ShotParameters(3220, 76.0, 1.704));
-    shotTable.put(Units.inchesToMeters(160), new ShotParameters(3325, 76.0, 1.760));
-    shotTable.put(Units.inchesToMeters(170), new ShotParameters(2955, 70.0, 1.488));
-    shotTable.put(Units.inchesToMeters(180), new ShotParameters(3165, 72.0, 1.632));
-    shotTable.put(Units.inchesToMeters(190), new ShotParameters(3330, 73.0, 1.736));
-    shotTable.put(Units.inchesToMeters(200), new ShotParameters(3035, 67.0, 1.496));
-    shotTable.put(Units.inchesToMeters(210), new ShotParameters(3085, 66.5, 1.516));
-    shotTable.put(Units.inchesToMeters(220), new ShotParameters(3155, 66.5, 1.556));
-    shotTable.put(Units.inchesToMeters(230), new ShotParameters(3100, 63.5, 1.480));
-    shotTable.put(Units.inchesToMeters(240), new ShotParameters(2955, 53.5, 1.212));
-    shotTable.put(Units.inchesToMeters(250), new ShotParameters(3020, 54.5, 1.268));
-    shotTable.put(Units.inchesToMeters(260), new ShotParameters(3150, 59.0, 1.428));
+    shotTable.put(Units.inchesToMeters(52), new ShotParameters(2500, 73.0, 0.786));
+    shotTable.put(Units.inchesToMeters(120), new ShotParameters(2800, 65.0, 1.034));
+    shotTable.put(Units.inchesToMeters(188), new ShotParameters(3500, 60.0, 1.193));
 
-    minDistanceMeters = Units.inchesToMeters(60);
-    maxDistanceMeters = Units.inchesToMeters(260);
+    minDistanceMeters = Units.inchesToMeters(52);
+    maxDistanceMeters = Units.inchesToMeters(188);
   }
 
   private ShooterMath() {}
+
+  /** Nearest distance (m) the table covers; closer shots use this row. */
+  public static double getMinDistanceMeters() {
+    return minDistanceMeters;
+  }
+
+  /** Farthest distance (m) the table covers; farther shots use this row. */
+  public static double getMaxDistanceMeters() {
+    return maxDistanceMeters;
+  }
 
   /** Shot table row for a horizontal distance (m), clamped to the table's range. */
   public static ShotParameters getShotParameters(double distanceMeters) {

@@ -13,9 +13,14 @@ import edu.wpi.first.wpilibj.Alert;
 import edu.wpi.first.wpilibj.Alert.AlertType;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import frc.robot.commands.ManualShot;
 import frc.robot.commands.SystemsCheck;
+import frc.robot.subsystems.extension.Extension;
+import frc.robot.subsystems.extension.ExtensionIO;
 import frc.robot.subsystems.hood.Hood;
 import frc.robot.subsystems.hood.HoodIO;
+import frc.robot.subsystems.shooter.Shooter;
+import frc.robot.subsystems.shooter.ShooterIO;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -39,7 +44,10 @@ class ElasticLayoutContractTest {
     // What the robot publishes: the Dashboard, the auto chooser, and the two alert groups.
     Dashboard dashboard =
         new Dashboard(new SystemsCheck(new SystemsCheck.MemoryStore()), new Hood(new HoodIO() {}));
-    dashboard.update(Pose2d.kZero, Optional.empty(), true, false);
+    // The real toggle: ManualShot publishes Match/Manual Mode itself.
+    dashboard.update(Pose2d.kZero, Optional.empty(), true, new ManualShot());
+    new Extension(new ExtensionIO() {}); // publishes Match/Retract Delay
+    new Shooter(new ShooterIO() {}); // publishes Match/Shot RPM Offset
     SmartDashboard.putData("Auto Choices", new SendableChooser<String>());
     new Alert("placeholder", AlertType.kInfo).set(true);
     new Alert(SystemsCheck.ALERT_GROUP, "placeholder", AlertType.kInfo).set(true);
@@ -61,6 +69,9 @@ class ElasticLayoutContractTest {
         String topic = container.get("properties").get("topic").asText();
         if (topic.equals("/FMSInfo")) {
           continue; // published by the DriverStation itself, not robot code
+        }
+        if (topic.startsWith("/CameraPublisher/")) {
+          continue; // camera streams are published by PhotonVision on the coprocessor
         }
         // Sendables and alert groups publish sub-topics under their name.
         boolean found =

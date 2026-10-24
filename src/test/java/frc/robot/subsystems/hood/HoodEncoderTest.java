@@ -3,6 +3,8 @@ package frc.robot.subsystems.hood;
 import static edu.wpi.first.units.Units.Degrees;
 import static frc.robot.subsystems.hood.HoodConstants.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
@@ -31,28 +33,79 @@ class HoodEncoderTest {
     assertEquals(78.0, angleForRaw(ENCODER_POSITION_CONVERSION_FACTOR - 2.0), EPS);
   }
 
-  @Test
-  void zeroMakesTheSteepStopReadMaxAndTheTravelFollows() {
-    // Zeroed at a raw 32.39 (the robot's reading on 2026-10-17, before calibration).
-    double zero = 32.39;
-    assertEquals(76.0, rawEncoderToAngle(zero, zero).in(Degrees), EPS);
-    // 26 deg of hood travel toward shallow wraps the raw reading past the period.
-    double shallowRaw = (zero + 26.0) % ENCODER_POSITION_CONVERSION_FACTOR;
-    assertEquals(50.0, rawEncoderToAngle(shallowRaw, zero).in(Degrees), EPS);
-    assertEquals(63.0, rawEncoderToAngle(zero + 13.0, zero).in(Degrees), EPS);
+  // A Spark MAX absolute encoder, modelled in both orders the firmware might apply the zero
+  // offset relative to inversion. rawRot is the sensor's own reading, [0, 1).
+  private static double wrap(double rot) {
+    return ((rot % 1.0) + 1.0) % 1.0;
+  }
+
+  private static double invert(double rot, boolean inverted) {
+    return inverted ? wrap(1.0 - rot) : rot;
+  }
+
+  private static double reportOffsetBeforeInversion(double rawRot, double offsetRot, boolean inv) {
+    return invert(wrap(rawRot - offsetRot), inv) * ENCODER_POSITION_CONVERSION_FACTOR;
+  }
+
+  private static double reportOffsetAfterInversion(double rawRot, double offsetRot, boolean inv) {
+    return wrap(invert(rawRot, inv) - offsetRot) * ENCODER_POSITION_CONVERSION_FACTOR;
   }
 
   @Test
-  void zeroedReadingsPastEitherStopStayContinuous() {
-    double zero = 50.0; // near the end of the period, so both sides wrap
-    double period = ENCODER_POSITION_CONVERSION_FACTOR;
-    assertEquals(80.0, rawEncoderToAngle(zero - 4.0, zero).in(Degrees), EPS);
-    assertEquals(45.0, rawEncoderToAngle((zero + 31.0) % period, zero).in(Degrees), EPS);
+  void firstCandidateZeroesASparkThatOffsetsBeforeInversion() {
+    for (double raw : new double[] {0.0, 0.123, 0.623, 0.999}) {
+      for (double oldOffset : new double[] {0.0, 0.41, 0.97}) {
+        double reported = reportOffsetBeforeInversion(raw, oldOffset, true);
+        double offset = sparkZeroOffsetCandidates(reported, oldOffset, true)[0];
+        double after = reportOffsetBeforeInversion(raw, offset, true);
+        assertTrue(readsAsSteepStop(after), "raw " + raw + ", old " + oldOffset + ": " + after);
+        assertEquals(76.0, reportedEncoderToAngle(after).in(Degrees), 1e-6);
+      }
+    }
   }
 
   @Test
-  void unzeroedReadingMatchesTheOldConversion() {
-    assertEquals(43.61, rawEncoderToAngle(32.39, 0.0).in(Degrees), 1e-6);
+  void secondCandidateZeroesASparkThatOffsetsAfterInversion() {
+    for (double raw : new double[] {0.0, 0.123, 0.623, 0.999}) {
+      for (double oldOffset : new double[] {0.0, 0.41, 0.97}) {
+        double reported = reportOffsetAfterInversion(raw, oldOffset, true);
+        double offset = sparkZeroOffsetCandidates(reported, oldOffset, true)[1];
+        double after = reportOffsetAfterInversion(raw, offset, true);
+        assertTrue(readsAsSteepStop(after), "raw " + raw + ", old " + oldOffset + ": " + after);
+      }
+    }
+  }
+
+  @Test
+  void theWrongOrderIsCaughtByTheCheck() {
+    // If the Spark offsets before inversion, candidate 1 must NOT read as zeroed (or the sequence
+    // would keep a bad zero). raw 0.3 with no old offset: the two candidates differ.
+    double reported = reportOffsetBeforeInversion(0.3, 0.0, true);
+    double[] candidates = sparkZeroOffsetCandidates(reported, 0.0, true);
+    assertFalse(readsAsSteepStop(reportOffsetBeforeInversion(0.3, candidates[1], true)));
+  }
+
+  @Test
+  void bothCandidatesAgreeWhenNotInverted() {
+    double[] c = sparkZeroOffsetCandidates(20.0, 0.25, false);
+    assertEquals(c[0], c[1], EPS);
+  }
+
+  @Test
+  void offsetsStayInTheSparksRange() {
+    for (double reported : new double[] {0.0, 1.0, 25.9, 51.99}) {
+      for (double c : sparkZeroOffsetCandidates(reported, 0.99, true)) {
+        assertTrue(c >= 0.0 && c < 1.0, "offset " + c);
+      }
+    }
+  }
+
+  @Test
+  void steepStopCheckAllowsTheWrapAndRejectsMidTravel() {
+    assertTrue(readsAsSteepStop(0.4));
+    assertTrue(readsAsSteepStop(ENCODER_POSITION_CONVERSION_FACTOR - 0.4));
+    assertFalse(readsAsSteepStop(13.0));
+    assertFalse(readsAsSteepStop(ZERO_VERIFY_TOLERANCE_DEG + 0.5));
   }
 
   @Test

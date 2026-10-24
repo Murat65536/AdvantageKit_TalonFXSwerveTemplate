@@ -15,6 +15,7 @@ import frc.robot.subsystems.hood.Hood;
 import frc.robot.subsystems.shooter.ShooterMath.ShotSolution;
 import java.util.function.Supplier;
 import org.littletonrobotics.junction.Logger;
+import org.littletonrobotics.junction.networktables.LoggedNetworkNumber;
 
 public class Shooter extends SubsystemBase {
   private final ShooterIO io;
@@ -23,6 +24,15 @@ public class Shooter extends SubsystemBase {
 
   private AngularVelocity targetVelocity = RPM.zero();
   private ShotSolution latestSolution = null;
+
+  /**
+   * Added to every automatic shot's flywheel speed (Match tab), for tuning the shot table on the
+   * field without a redeploy: positive shoots farther, negative shorter. Starts at 0 every boot;
+   * once a value works, fold it into ShooterMath's table and set this back to 0.
+   */
+  private final LoggedNetworkNumber rpmOffset = new LoggedNetworkNumber(RPM_OFFSET_KEY, 0.0);
+
+  public static final String RPM_OFFSET_KEY = "/SmartDashboard/Match/Shot RPM Offset";
 
   public Shooter(ShooterIO io) {
     this.io = io;
@@ -78,7 +88,8 @@ public class Shooter extends SubsystemBase {
                       robotPoseSupplier.get(), fieldRelativeSpeedsSupplier.get());
               latestSolution = solution;
 
-              AngularVelocity flywheelTarget = solution.flywheelVelocity();
+              AngularVelocity flywheelTarget =
+                  solution.flywheelVelocity().plus(RPM.of(rpmOffset.get()));
               hood.setTargetAngle(solution.launchAngle());
               setVelocity(flywheelTarget);
 

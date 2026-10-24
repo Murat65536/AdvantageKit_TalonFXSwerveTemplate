@@ -40,6 +40,12 @@ public class Autos {
    */
   public static final double VOLLEY_TIMEOUT_SECONDS = 4.0;
 
+  /**
+   * Trench autos start the flywheel this long before the first sweep reaches its shooting stop. On
+   * the robot it took about 1.7 s from rest to shooting speed; the volley waits for the rest.
+   */
+  public static final double SPIN_UP_LEAD_SECONDS = 1.5;
+
   private final Drive drive;
   private final Intake intake;
   private final Extension extension;
@@ -149,10 +155,50 @@ public class Autos {
   }
 
   /**
+   * Preload plus the depot: start in the same spot as {@link #centerPreload} (rear bumper against
+   * the middle of the hub's alliance face), drive to the tower end of the depot, sweep up along the
+   * wall intake-first at 1.5 m/s, then leave past the far end and stop to the left of the hub with
+   * the shooter facing it and shoot the preload and everything collected in one volley. The preload
+   * rides along because the start is closer to the hub than the shot table covers. The depot is
+   * swept from the side because entering it head-on caused problems on the robot, and the robot
+   * leaves past the far end so it doesn't cross the depot again.
+   *
+   * <p>Not yet run on the robot. In maple-sim the robot clips the tower on the way to the depot
+   * (see {@code AutoScoringDepotHarness}), so watch that spot on the first run.
+   */
+  public Command centerDepot() {
+    AutoRoutine routine = autoFactory.newRoutine("CenterDepot");
+    AutoTrajectory toDepot = ChoreoTraj.Center_Depot.asAutoTraj(routine);
+
+    Command drivePlan =
+        Commands.sequence(
+            toDepot.resetOdometry(),
+            Commands.runOnce(drive::resetChoreoControllers, drive),
+            Commands.deadline(toDepot.cmd(), extension.extend(), intakeWhileExtended()),
+            volley(),
+            drive.runOnce(drive::stop));
+
+    // Same delayed spin-up as the trench autos, to keep the flywheel's spin-up current away from
+    // the drive's launch off the hub.
+    double spinUpDelaySeconds =
+        Math.max(0.0, ChoreoTraj.Center_Depot.totalTimeSecs() - SPIN_UP_LEAD_SECONDS);
+    routine
+        .active()
+        .onTrue(
+            Commands.deadline(
+                drivePlan,
+                Commands.waitSeconds(spinUpDelaySeconds)
+                    .andThen(ShootCommands.spinUp(drive, shooter, hood, kicker))));
+
+    return routine.cmd().withName("Auto_CenterDepot");
+  }
+
+  /**
    * Two sweeps with a volley after each. The path is split at the first shooting stop so each half
    * is its own trajectory; the second half only starts once the first volley has been fired. Intake
    * runs for each whole sweep so every fuel the path passes over is collected. The flywheel and
-   * hood track the shot for the entire routine, so a volley only waits for the aim to settle.
+   * hood start tracking the shot 1.5 s before the first stop (see SPIN_UP_LEAD_SECONDS) and keep
+   * tracking it for the rest of the routine.
    */
   private Command trenchAuto(String name, ChoreoTraj firstSweep, ChoreoTraj secondSweep) {
     AutoRoutine routine = autoFactory.newRoutine(name);
@@ -173,9 +219,18 @@ public class Autos {
             // without this the robot kept drifting (0.9 m, 45 deg) until the end of AUTO.
             drive.runOnce(drive::stop));
 
+    // Spin up only for the end of the first sweep, then keep the flywheel going for the rest of
+    // the routine. Spinning up from rest at the start of AUTO (4 Vortexes, ~260 A) while the drive
+    // accelerated browned the robot out on the field (6.9 V, BrownedOut set), and the timed hopper
+    // extend ran out of time at ~87%. Holding speed afterwards takes only 30-45 A.
+    double spinUpDelaySeconds = Math.max(0.0, firstSweep.totalTimeSecs() - SPIN_UP_LEAD_SECONDS);
     routine
         .active()
-        .onTrue(Commands.deadline(drivePlan, ShootCommands.spinUp(drive, shooter, hood, kicker)));
+        .onTrue(
+            Commands.deadline(
+                drivePlan,
+                Commands.waitSeconds(spinUpDelaySeconds)
+                    .andThen(ShootCommands.spinUp(drive, shooter, hood, kicker))));
 
     return routine.cmd().withName("Auto_" + name);
   }
